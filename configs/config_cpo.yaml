@@ -1,0 +1,9 @@
+# Configuration for SimPO training
+
+# Model
+model:
+  name: "elyza/Llama-3-ELYZA-JP-8B"
+
+# Dataset
+dataset:
+  name: "HuggingFaceH4/ultrafeedback_binarized"
