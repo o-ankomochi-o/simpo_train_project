@@ -83,6 +83,14 @@ training_args = CPOConfig(
     per_device_train_batch_size=2,
     num_train_epochs=1,
     logging_steps=10,
+    deepspeed="configs/ds_config.json",
+    gradient_checkpointing=True,  # Save memory by using gradient checkpointing
+    save_strategy="steps",
+    save_steps=100,
+    evaluation_strategy="steps",
+    eval_steps=100,
+    learning_rate=5e-6,
+    report_to="wandb",
 )
 
 # Create trainer
@@ -101,7 +109,7 @@ trainer.train()
 
 # Save model
 print("Saving model...")
-model.save_pretrained("./output/simpo-trained-model")
+trainer.save_model("./output/simpo-trained-model")
 tokenizer.save_pretrained("./output/simpo-trained-model")
 
 print("Training completed successfully!")
