@@ -1,0 +1,9 @@
+transformers
+datasets
+trl
+accelerate
+bitsandbytes
+torch
+pyyaml
+deepspeed
+wandb
