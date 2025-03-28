@@ -5,11 +5,37 @@ Main script for training ELYZA Llama-3 model with SimPO.
 """
 
 import os
+import sys
 
+import deepspeed
+import torch
+import torch.distributed as dist
 import yaml
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from trl import CPOConfig, CPOTrainer
+
+# バージョン情報の表示
+print(f"Python version: {sys.version}")
+print(f"PyTorch version: {torch.__version__}")
+print(f"CUDA available: {torch.cuda.is_available()}")
+print(f"CUDA version: {torch.version.cuda}")
+print(f"GPU count: {torch.cuda.device_count()}")
+for i in range(torch.cuda.device_count()):
+    print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
+
+# 明示的な分散環境の初期化
+deepspeed.init_distributed()
+
+
+# LOCAL_RANKとglobal_rankを設定
+local_rank = int(os.environ.get("LOCAL_RANK", 0))
+global_rank = dist.get_rank()
+world_size = dist.get_world_size()
+
+print(
+    f"Process info: local_rank={local_rank}, global_rank={global_rank}, world_size={world_size}"
+)
 
 # Load configuration
 config_path = "configs/config_cpo.yaml"
