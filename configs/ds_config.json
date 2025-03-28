@@ -1,6 +1,6 @@
 {
   "fp16": {
-    "enabled": false,
+    "enabled": "auto",
     "loss_scale": 0,
     "loss_scale_window": 1000,
     "initial_scale_power": 32,
@@ -31,17 +31,17 @@
   "optimizer": {
     "type": "AdamW",
     "params": {
-      "lr": 5e-7,
+      "lr": "auto",
       "betas": [0.9, 0.999],
       "eps": 1e-8,
-      "weight_decay": 0.01
+      "weight_decay": "auto"
     }
   },
   "scheduler": {
     "type": "WarmupCosineLR",
     "params": {
-      "total_num_steps": 15,
-      "warmup_num_steps": 2
+      "total_num_steps": "auto",
+      "warmup_num_steps": "auto"
     }
   },
   "steps_per_print": 10,
