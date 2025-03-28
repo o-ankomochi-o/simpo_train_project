@@ -44,10 +44,10 @@
       "warmup_num_steps": "auto"
     }
   },
-  "steps_per_print": 10,
+  "steps_per_print": "auto",
   "wall_clock_breakdown": false,
-  "train_micro_batch_size_per_gpu": 8,
-  "gradient_accumulation_steps": 1,
+  "train_micro_batch_size_per_gpu": "auto",
+  "gradient_accumulation_steps": "auto",
   "gradient_clipping": "auto",
   "train_batch_size": 32
 }
