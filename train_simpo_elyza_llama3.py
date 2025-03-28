@@ -46,6 +46,7 @@ class CustomCPOTrainer(CPOTrainer):
     def compute_loss(
         self, model, inputs, return_outputs=False, num_items_in_batch=None
     ):
+        print("🧠 compute_loss called")
         # num_items_in_batch を親クラスにそのまま渡す（使わないなら無視される）
         return super().compute_loss(
             model,
