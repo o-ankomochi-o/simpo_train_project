@@ -40,8 +40,19 @@ class CustomCPOTrainer(CPOTrainer):
         super().__init__(*args, **kwargs)
         self.use_deepspeed = True
 
-    def compute_loss(self, model, inputs, return_outputs=False):
-        return super().compute_loss(model, inputs, return_outputs=return_outputs)
+    # def compute_loss(self, model, inputs, return_outputs=False):
+    #     return super().compute_loss(model, inputs, return_outputs=return_outputs)
+
+    def compute_loss(
+        self, model, inputs, return_outputs=False, num_items_in_batch=None
+    ):
+        # num_items_in_batch を親クラスにそのまま渡す（使わないなら無視される）
+        return super().compute_loss(
+            model,
+            inputs,
+            return_outputs=return_outputs,
+            num_items_in_batch=num_items_in_batch,
+        )
 
     def log(self, logs, start_time=None):
         # 親クラスのlogメソッドをインスタンスメソッドとして呼び出し
