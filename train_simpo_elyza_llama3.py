@@ -65,7 +65,7 @@ print(train_dataset[0])
 # Load model and tokenizer
 print(f"Loading model: {config['model']['name']}...")
 tokenizer = AutoTokenizer.from_pretrained(config["model"]["name"])
-model = AutoModelForCausalLM.from_pretrained(config["model"]["name"], device_map="auto")
+model = AutoModelForCausalLM.from_pretrained(config["model"]["name"])
 tokenizer.pad_token = tokenizer.eos_token
 
 
