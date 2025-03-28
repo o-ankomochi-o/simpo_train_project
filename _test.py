@@ -14,13 +14,15 @@ import torch._dynamo
 
 torch._dynamo.disable()
 
+import json
+
 import deepspeed
 import torch
 import torch.distributed as dist
-import wandb
 import yaml
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers.integrations import HfDeepSpeedConfig
 from trl import CPOConfig, CPOTrainer
 
 # バージョン情報の表示
@@ -33,33 +35,23 @@ for i in range(torch.cuda.device_count()):
     print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
 
 
-class CustomCPOTrainer(CPOTrainer):
-    """DeepSpeedとログ機能を統合したカスタムCPOトレーナー"""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.use_deepspeed = True
-
-    def compute_loss(self, model, inputs, return_outputs=False):
-        return super().compute_loss(model, inputs, return_outputs=return_outputs)
-
-    def log(self, logs, start_time=None):
-        # 親クラスのlogメソッドをインスタンスメソッドとして呼び出し
-        super(CustomCPOTrainer, self).log(logs)
-
-        # 親クラスの処理後にwandbにログを記録
-        if self.args.report_to == "wandb":
-            wandb.log(logs)
-
+with open("configs/ds_config.json", "r") as f:
+    ds_config = json.load(f)
+dschf = HfDeepSpeedConfig(ds_config)
 
 # 明示的な分散環境の初期化
-deepspeed.init_distributed()
+# 分散学習の初期化
+if not dist.is_initialized():
+    deepspeed.init_distributed()
 
 
 # LOCAL_RANKとglobal_rankを設定
 local_rank = int(os.environ.get("LOCAL_RANK", 0))
 global_rank = dist.get_rank()
 world_size = dist.get_world_size()
+
+torch.cuda.set_device(local_rank)
+
 
 print(
     f"Process info: local_rank={local_rank}, global_rank={global_rank}, world_size={world_size}"
@@ -137,7 +129,7 @@ training_args = CPOConfig(
     per_device_train_batch_size=2,
     num_train_epochs=1,
     logging_steps=10,
-    deepspeed="configs/ds_config.json",
+    deepspeed=ds_config,
     gradient_checkpointing=True,  # Save memory by using gradient checkpointing
     save_strategy="steps",
     save_steps=100,
@@ -149,7 +141,7 @@ training_args = CPOConfig(
 
 # Create trainer
 print("Setting up trainer...")
-trainer = CustomCPOTrainer(
+trainer = CPOTrainer(
     model=model,
     args=training_args,
     train_dataset=formatted_train_dataset,
