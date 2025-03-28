@@ -7,6 +7,13 @@ Main script for training ELYZA Llama-3 model with SimPO.
 import os
 import sys
 
+# Flex-Attention を無効化
+os.environ["TRANSFORMERS_NO_FLEX_ATTENTION"] = "1"
+# torch._dynamo を無効化
+import torch._dynamo
+
+torch._dynamo.disable()
+
 import deepspeed
 import torch
 import torch.distributed as dist
