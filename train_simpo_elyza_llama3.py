@@ -40,9 +40,7 @@ class CustomCPOTrainer(CPOTrainer):
         super().__init__(*args, **kwargs)
         self.use_deepspeed = True
 
-    def compute_loss(
-        self, model, inputs, return_outputs=False, num_items_in_batch=None
-    ):
+    def compute_loss(self, model, inputs, return_outputs=False):
         return super().compute_loss(model, inputs, return_outputs=return_outputs)
 
     # def compute_loss(
@@ -78,7 +76,6 @@ world_size = dist.get_world_size()
 print(
     f"Process info: local_rank={local_rank}, global_rank={global_rank}, world_size={world_size}"
 )
-
 # Load configuration
 config_path = "configs/config_cpo.yaml"
 with open(config_path, "r") as f:
@@ -102,6 +99,9 @@ print(f"Loading model: {config['model']['name']}...")
 tokenizer = AutoTokenizer.from_pretrained(config["model"]["name"])
 model = AutoModelForCausalLM.from_pretrained(config["model"]["name"])
 tokenizer.pad_token = tokenizer.eos_token
+
+wandb.init(project=config.log_project, name=f"SimPO_training_run")
+wandb.watch(model, log="all", log_freq=10)
 
 
 # Preprocess dataset
