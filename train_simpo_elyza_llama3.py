@@ -34,7 +34,7 @@ for i in range(torch.cuda.device_count()):
 
 
 class CustomCPOTrainer(CPOTrainer):
-    """DeepSpeedとログ機能を統合したカスタムCPOトレーナー"""
+    """DeepSpeedとログ機能を統合したカスタムCPOトレーナー-"""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
