@@ -100,7 +100,7 @@ tokenizer = AutoTokenizer.from_pretrained(config["model"]["name"])
 model = AutoModelForCausalLM.from_pretrained(config["model"]["name"])
 tokenizer.pad_token = tokenizer.eos_token
 
-wandb.init(project=config["log_project"], name="SimPO_training_run")
+wandb.init(project="test", name="SimPO_training_run")
 
 wandb.watch(model, log="all", log_freq=10)
 
