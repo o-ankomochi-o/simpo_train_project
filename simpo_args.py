@@ -19,3 +19,4 @@ class SimPOTrainingArguments(CPOConfig):
         default=None,
         metadata={"help": "Keyword arguments to initialize reference model."},
     )
+    model_adapter_name: Optional[str] = field(default=None)
