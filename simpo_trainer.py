@@ -24,6 +24,9 @@ class SimPOConfig(DPOConfig):
 
 class SimPOTrainer(DPOTrainer):
     def __init__(self, *args, **kwargs):
+        #  DeepSpeed ZeRO-3 互換性のため ref_model がなければ None を明示
+        if "ref_model" not in kwargs:
+            kwargs["ref_model"] = None
         super().__init__(*args, **kwargs)
         training_args = kwargs["args"]
         self.gamma = training_args.simpo_gamma
