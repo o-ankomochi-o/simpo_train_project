@@ -21,10 +21,9 @@ import wandb
 import yaml
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from trl import CPOConfig
 
+from simpo_args import SimPOTrainingArguments
 from simpo_trainer import SimPOTrainer
-
 
 # バージョン情報の表示
 print(f"Python version: {sys.version}")
@@ -116,7 +115,7 @@ formatted_train_dataset = formatted_train_dataset.remove_columns(columns_to_remo
 formatted_test_dataset = formatted_test_dataset.remove_columns(columns_to_remove)
 
 # Setup training arguments
-training_args = CPOConfig(
+training_args = SimPOTrainingArguments(
     output_dir="./output/simpo-trained-model",
     loss_type="simpo",
     cpo_alpha=0.0,  # For pure SimPO
