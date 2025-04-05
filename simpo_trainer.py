@@ -24,23 +24,6 @@ class SimPOConfig(DPOConfig):
 
 class SimPOTrainer(DPOTrainer):
     def __init__(self, *args, **kwargs):
-        # DeepSpeed ZeRO-3 互換性のため ref_model がなければ None を明示
-        if "ref_model" not in kwargs:
-            if "args" in kwargs and hasattr(kwargs["args"], "deepspeed"):
-                import json
-
-                with open(kwargs["args"].deepspeed, "r") as f:
-                    ds_config = json.load(f)
-                    zero_stage = ds_config.get("zero_optimization", {}).get("stage", 0)
-                    if zero_stage == 3:
-                        # ZeRO-3の場合、ref_modelを明示的に初期化する必要があることを警告
-                        print(
-                            "WARNING: DeepSpeed ZeRO-3 is enabled. You must provide a reference model explicitly."
-                        )
-                        print(
-                            "         Setting ref_model=None for now, but this may lead to errors."
-                        )
-                        kwargs["ref_model"] = None
         super().__init__(*args, **kwargs)
         training_args = kwargs["args"]
         self.gamma = training_args.simpo_gamma
