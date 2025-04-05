@@ -133,6 +133,7 @@ training_args = SimPOConfig(
     eval_steps=100,
     learning_rate=5e-6,
     report_to="wandb",
+    warmup_steps=100,
 )
 
 # Create trainer
