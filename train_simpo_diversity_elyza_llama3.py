@@ -68,6 +68,8 @@ print(train_dataset[0])
 print(f"Loading model: {config['model']['name']}...")
 tokenizer = AutoTokenizer.from_pretrained(config["model"]["name"])
 model = AutoModelForCausalLM.from_pretrained(config["model"]["name"])
+# 別のインスタンスとして読み込む（同じパラメータを持つが別のオブジェクト）
+ref_model = AutoModelForCausalLM.from_pretrained(config["model"]["name"])
 tokenizer.pad_token = tokenizer.eos_token
 
 wandb.init(project="test", name="SimPO_training_run")
@@ -138,7 +140,7 @@ print("Setting up trainer...")
 
 trainer = SimPOTrainer(
     model=model,
-    ref_model=model,
+    ref_model=ref_model,  # pass in to bypass DPO Trainer check for ref model but is not actually used
     args=training_args,
     train_dataset=formatted_train_dataset,
     eval_dataset=formatted_test_dataset,
