@@ -1,16 +1,35 @@
-from typing import Dict, List, Literal, Tuple, Union
+from dataclasses import dataclass, field
+from typing import Dict, List, Literal, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from trl import DPOTrainer
+from transformers import TrainingArguments
+from trl import DPOConfig, DPOTrainer
+
+
+# ✅ DPOConfig を継承して SimPO 専用の config を定義
+@dataclass
+class SimPOConfig(DPOConfig):
+    gamma: Optional[float] = field(
+        default=0.5,
+        metadata={"help": "The target reward margin term in SimPO loss."},
+    )
+    diversity_weight: float = field(
+        default=0.05,
+        metadata={"help": "Weight for the diversity (entropy) loss."},
+    )
+    diversity_alpha: float = field(
+        default=1.0,
+        metadata={"help": "Temperature for entropy calculation in diversity loss."},
+    )
 
 
 class SimPOTrainer(DPOTrainer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         training_args = kwargs["args"]
-        self.gamma = training_args.simpo_gamma
+        self.gamma = getattr(training_args, "gamma", 0.5)
         self.diversity_weight = getattr(training_args, "diversity_weight", 0.05)
         self.diversity_alpha = getattr(training_args, "diversity_alpha", 1.0)
 
@@ -34,7 +53,7 @@ class SimPOTrainer(DPOTrainer):
         else:
             raise ValueError(f"Unknown loss type: {self.loss_type}")
 
-        # 多様性ロス
+        # ✅ 多様性ロス
         diversity_loss = 0.0
         if policy_chosen_logits is not None:
             probs = F.softmax(policy_chosen_logits / self.diversity_alpha, dim=-1)
