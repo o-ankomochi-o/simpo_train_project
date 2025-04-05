@@ -138,6 +138,7 @@ print("Setting up trainer...")
 
 trainer = SimPOTrainer(
     model=model,
+    ref_model=None,  # DeepSpeedのZeRO-3が有効になっている場合に create_reference_model() が使えないために起きています。DPOTrainer（および継承した SimPOTrainer）は、デフォルトでは内部で勝手に reference model を複製しようとしますが、ZeRO-3ではそれができません。
     args=training_args,
     train_dataset=formatted_train_dataset,
     eval_dataset=formatted_test_dataset,
