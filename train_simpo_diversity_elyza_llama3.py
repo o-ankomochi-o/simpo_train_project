@@ -21,7 +21,9 @@ import wandb
 import yaml
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from trl import CPOConfig, CPOTrainer
+from trl import CPOConfig
+
+from simpo_trainer import SimPOTrainer
 
 
 # バージョン情報の表示
@@ -32,37 +34,6 @@ print(f"CUDA version: {torch.version.cuda}")
 print(f"GPU count: {torch.cuda.device_count()}")
 for i in range(torch.cuda.device_count()):
     print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
-
-
-class CustomCPOTrainer(CPOTrainer):
-    """DeepSpeedとログ機能を統合したカスタムCPOトレーナー-"""
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.use_deepspeed = True
-
-    def compute_loss(self, model, inputs, return_outputs=False):
-        return super().compute_loss(model, inputs, return_outputs=return_outputs)
-
-    # def compute_loss(
-    #     self, model, inputs, return_outputs=False, num_items_in_batch=None
-    # ):
-    #     print("🧠 compute_loss called")
-    #     # num_items_in_batch を親クラスにそのまま渡す（使わないなら無視される）
-    #     return super().compute_loss(
-    #         model,
-    #         inputs,
-    #         return_outputs=return_outputs,
-    #         num_items_in_batch=num_items_in_batch,
-    #     )
-
-    def log(self, logs, start_time=None):
-        # 親クラスのlogメソッドをインスタンスメソッドとして呼び出し
-        super(CustomCPOTrainer, self).log(logs)
-
-        # 親クラスの処理後にwandbにログを記録
-        if self.args.report_to == "wandb":
-            wandb.log(logs)
 
 
 # 明示的な分散環境の初期化
@@ -150,6 +121,8 @@ training_args = CPOConfig(
     loss_type="simpo",
     cpo_alpha=0.0,  # For pure SimPO
     simpo_gamma=0.7,
+    diversity_weight=0.05,  # 👈 多様性重視度
+    diversity_alpha=1.0,  # 👈 エントロピー計算の温度
     per_device_train_batch_size=2,
     num_train_epochs=1,
     logging_steps=10,
@@ -165,7 +138,15 @@ training_args = CPOConfig(
 
 # Create trainer
 print("Setting up trainer...")
-trainer = CustomCPOTrainer(
+# trainer = CustomCPOTrainer(
+#     model=model,
+#     args=training_args,
+#     train_dataset=formatted_train_dataset,
+#     eval_dataset=formatted_test_dataset,
+#     processing_class=tokenizer,
+# )
+
+trainer = SimPOTrainer(
     model=model,
     args=training_args,
     train_dataset=formatted_train_dataset,
