@@ -1,23 +1,20 @@
+# simpo_trainer.py
+
 from dataclasses import dataclass, field
-from typing import Dict, List, Literal, Optional, Tuple, Union
+from typing import Optional
 
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-from transformers import TrainingArguments
 from trl import DPOConfig, DPOTrainer
 
 
-# ✅ DPOConfig を継承して SimPO 専用の config を定義
 @dataclass
 class SimPOConfig(DPOConfig):
-    gamma: Optional[float] = field(
-        default=0.5,
-        metadata={"help": "The target reward margin term in SimPO loss."},
+    simpo_gamma: float = field(
+        default=0.7, metadata={"help": "Reward margin scaling factor for SimPO."}
     )
     diversity_weight: float = field(
-        default=0.05,
-        metadata={"help": "Weight for the diversity (entropy) loss."},
+        default=0.05, metadata={"help": "Weight for the diversity (entropy) loss."}
     )
     diversity_alpha: float = field(
         default=1.0,
@@ -29,16 +26,13 @@ class SimPOTrainer(DPOTrainer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         training_args = kwargs["args"]
-        self.gamma = getattr(training_args, "gamma", 0.5)
+        self.gamma = training_args.simpo_gamma
         self.diversity_weight = getattr(training_args, "diversity_weight", 0.05)
         self.diversity_alpha = getattr(training_args, "diversity_alpha", 1.0)
 
     def simpo_loss(
-        self,
-        policy_chosen_logps: torch.FloatTensor,
-        policy_rejected_logps: torch.FloatTensor,
-        policy_chosen_logits: torch.FloatTensor = None,
-    ) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
+        self, policy_chosen_logps, policy_rejected_logps, policy_chosen_logits=None
+    ):
         pi_logratios = policy_chosen_logps - policy_rejected_logps
         gamma_logratios = self.gamma / self.beta
         logits = pi_logratios - gamma_logratios
@@ -53,7 +47,6 @@ class SimPOTrainer(DPOTrainer):
         else:
             raise ValueError(f"Unknown loss type: {self.loss_type}")
 
-        # ✅ 多様性ロス
         diversity_loss = 0.0
         if policy_chosen_logits is not None:
             probs = F.softmax(policy_chosen_logits / self.diversity_alpha, dim=-1)
@@ -69,11 +62,7 @@ class SimPOTrainer(DPOTrainer):
 
         return losses, chosen_rewards, rejected_rewards
 
-    def concatenated_forward(
-        self, model: nn.Module, batch: Dict[str, Union[List, torch.LongTensor]]
-    ) -> Tuple[
-        torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, torch.FloatTensor
-    ]:
+    def concatenated_forward(self, model, batch):
         concatenated_batch = self.concatenated_inputs(
             batch,
             is_encoder_decoder=self.is_encoder_decoder,
@@ -111,19 +100,12 @@ class SimPOTrainer(DPOTrainer):
 
         chosen_logps = all_logps[:len_chosen]
         rejected_logps = all_logps[len_chosen:]
-
         chosen_logits = all_logits[:len_chosen]
         rejected_logits = all_logits[len_chosen:]
 
         return (chosen_logps, rejected_logps, chosen_logits, rejected_logits)
 
-    def get_batch_loss_metrics(
-        self,
-        model,
-        batch: Dict[str, Union[List, torch.LongTensor]],
-        train_eval: Literal["train", "eval"] = "train",
-    ):
-        metrics = {}
+    def get_batch_loss_metrics(self, model, batch, train_eval="train"):
         (
             policy_chosen_logps,
             policy_rejected_logps,
@@ -140,17 +122,17 @@ class SimPOTrainer(DPOTrainer):
         reward_accuracies = (chosen_rewards > rejected_rewards).float()
         prefix = "eval_" if train_eval == "eval" else ""
 
-        metrics[f"{prefix}rewards/chosen"] = chosen_rewards.mean().cpu()
-        metrics[f"{prefix}rewards/rejected"] = rejected_rewards.mean().cpu()
-        metrics[f"{prefix}rewards/accuracies"] = reward_accuracies.mean().cpu()
-        metrics[f"{prefix}rewards/margins"] = (
-            (chosen_rewards - rejected_rewards).mean().cpu()
-        )
-        metrics[f"{prefix}logps/rejected"] = policy_rejected_logps.detach().mean().cpu()
-        metrics[f"{prefix}logps/chosen"] = policy_chosen_logps.detach().mean().cpu()
-        metrics[f"{prefix}logits/rejected"] = (
-            policy_rejected_logits.detach().mean().cpu()
-        )
-        metrics[f"{prefix}logits/chosen"] = policy_chosen_logits.detach().mean().cpu()
+        metrics = {
+            f"{prefix}rewards/chosen": chosen_rewards.mean().cpu(),
+            f"{prefix}rewards/rejected": rejected_rewards.mean().cpu(),
+            f"{prefix}rewards/accuracies": reward_accuracies.mean().cpu(),
+            f"{prefix}rewards/margins": (chosen_rewards - rejected_rewards)
+            .mean()
+            .cpu(),
+            f"{prefix}logps/chosen": policy_chosen_logps.mean().cpu(),
+            f"{prefix}logps/rejected": policy_rejected_logps.mean().cpu(),
+            f"{prefix}logits/chosen": policy_chosen_logits.mean().cpu(),
+            f"{prefix}logits/rejected": policy_rejected_logits.mean().cpu(),
+        }
 
         return losses.mean(), metrics

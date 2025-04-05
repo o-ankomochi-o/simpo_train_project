@@ -117,7 +117,6 @@ formatted_test_dataset = formatted_test_dataset.remove_columns(columns_to_remove
 training_args = SimPOConfig(
     output_dir="./output/simpo-trained-model",
     loss_type="simpo",
-    cpo_alpha=0.0,  # For pure SimPO
     simpo_gamma=0.7,
     diversity_weight=0.05,  # 👈 多様性重視度
     diversity_alpha=1.0,  # 👈 エントロピー計算の温度
@@ -136,13 +135,6 @@ training_args = SimPOConfig(
 
 # Create trainer
 print("Setting up trainer...")
-# trainer = CustomCPOTrainer(
-#     model=model,
-#     args=training_args,
-#     train_dataset=formatted_train_dataset,
-#     eval_dataset=formatted_test_dataset,
-#     processing_class=tokenizer,
-# )
 
 trainer = SimPOTrainer(
     model=model,
