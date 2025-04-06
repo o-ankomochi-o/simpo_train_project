@@ -127,6 +127,8 @@ training_args = SimPOConfig(
     diversity_weight=0.05,  # 👈 多様性重視度
     diversity_alpha=1.0,  # 👈 エントロピー計算の温度
     per_device_train_batch_size=1,
+    gradient_accumulation_steps=8,
+    train_batch_size=32,  # 追加: 1 * 8 * 4 = 32
     num_train_epochs=1,
     logging_steps=10,
     deepspeed="configs/ds_config.json",
