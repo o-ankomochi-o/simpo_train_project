@@ -174,7 +174,7 @@ print("Setting up trainer...")
 
 trainer = SimPOTrainer(
     model=model,
-    # ref_model=ref_model,  # pass in to bypass DPO Trainer check for ref model but is not actually used
+    ref_model=ref_model,  # pass in to bypass DPO Trainer check for ref model but is not actually used
     args=training_args,
     train_dataset=formatted_train_dataset,
     eval_dataset=formatted_test_dataset,
