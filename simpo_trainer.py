@@ -24,12 +24,10 @@ class SimplifiedSimPOTrainer(DPOTrainer):
     """
 
     def __init__(self, *args, **kwargs):
-        # ref_modelの保存と削除
-        if "ref_model" in kwargs:
-            orig_ref_model = kwargs["ref_model"]
-            # 一時的にref_modelを自分自身に設定
-            kwargs["ref_model"] = kwargs["model"]
-
+        # DeepSpeed ZeRO-3とcreate_reference_model()の非互換性に対応
+        # ref_modelはすでに外部で初期化されていることを確認
+        if "ref_model" not in kwargs:
+            raise ValueError("When using DeepSpeed ZeRO-3, ref_model must be provided.")
         super().__init__(*args, **kwargs)
         training_args = kwargs["args"]
         self.gamma = getattr(training_args, "simpo_gamma", 0.7)

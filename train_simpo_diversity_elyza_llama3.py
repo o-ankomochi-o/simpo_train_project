@@ -68,10 +68,18 @@ print(train_dataset[0])
 # Load model and tokenizer
 print(f"Loading model: {config['model']['name']}...")
 tokenizer = AutoTokenizer.from_pretrained(config["model"]["name"])
-model = AutoModelForCausalLM.from_pretrained(config["model"]["name"])
+model_kwargs = {
+    "torch_dtype": torch.bfloat16 if torch.cuda.is_available() else torch.float32,
+    "device_map": "auto" if torch.cuda.is_available() else None,
+}
+model = AutoModelForCausalLM.from_pretrained(config["model"]["name"], **model_kwargs)
 # # 別のインスタンスとして読み込む（同じパラメータを持つが別のオブジェクト）
 # ref_model = AutoModelForCausalLM.from_pretrained(config["model"]["name"])
 tokenizer.pad_token = tokenizer.eos_token
+
+# リファレンスモデルの設定
+ref_model = model  # 同じモデルインスタンスを参照
+ref_model_kwargs = model_kwargs
 
 wandb.init(project="test", name="SimPO_training_run")
 
