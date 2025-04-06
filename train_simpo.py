@@ -194,7 +194,6 @@ training_args = SimPOConfig(
 print("Setting up trainer...")
 trainer = CustomSimPOTrainer(
     model=model,
-    ref_model=model,  # pass in to bypass DPO Trainer check for ref model but is not actually used
     args=training_args,
     train_dataset=formatted_train_dataset,
     eval_dataset=formatted_test_dataset,
