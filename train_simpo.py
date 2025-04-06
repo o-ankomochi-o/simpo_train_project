@@ -20,7 +20,7 @@ import torch.distributed as dist
 import wandb
 import yaml
 from datasets import load_dataset
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
 
 from simpo_trainer import SimPOConfig, SimPOTrainer
 
@@ -43,7 +43,7 @@ class CustomSimPOTrainer(SimPOTrainer):
 
     def log(self, logs, start_time=None):
         # 親クラスのlogメソッドをインスタンスメソッドとして呼び出し
-        super(CustomSimPOTrainer, self).log(logs)
+        super(CustomSimPOTrainer, self).log(logs, start_time)
 
         # 親クラスの処理後にwandbにログを記録
         if self.args.report_to == "wandb":
@@ -82,8 +82,39 @@ print(train_dataset[0])
 
 # Load model and tokenizer
 print(f"Loading model: {config['model']['name']}...")
-tokenizer = AutoTokenizer.from_pretrained(config["model"]["name"])
-model = AutoModelForCausalLM.from_pretrained(config["model"]["name"])
+
+# Hugging Faceトークンの取得（環境変数または設定ファイルから）
+hf_token = os.environ.get("HF_TOKEN", config.get("model", {}).get("token", None))
+
+# モデルとトークナイザーの読み込み（トークンがある場合は使用）
+tokenizer_kwargs = {}
+model_kwargs = {}
+
+if hf_token:
+    print("Using Hugging Face token for authentication")
+    tokenizer_kwargs["token"] = hf_token
+    model_kwargs["token"] = hf_token
+
+try:
+    tokenizer = AutoTokenizer.from_pretrained(
+        config["model"]["name"], **tokenizer_kwargs
+    )
+    model = AutoModelForCausalLM.from_pretrained(
+        config["model"]["name"], **model_kwargs
+    )
+except Exception as e:
+    print(f"Error loading model from {config['model']['name']}: {e}")
+    print("Checking if this is a local path...")
+    if os.path.exists(config["model"]["name"]):
+        print(f"Loading model from local path: {config['model']['name']}")
+        tokenizer = AutoTokenizer.from_pretrained(
+            config["model"]["name"], local_files_only=True
+        )
+        model = AutoModelForCausalLM.from_pretrained(
+            config["model"]["name"], local_files_only=True
+        )
+    else:
+        raise e
 tokenizer.pad_token = tokenizer.eos_token
 
 # Initialize wandb
@@ -138,7 +169,8 @@ training_args = SimPOConfig(
     output_dir="./output/simpo-trained-model",
     loss_type="sigmoid",
     simpo_gamma=0.7,  # SimPO's gamma parameter
-    per_device_train_batch_size=2,
+    per_device_train_batch_size=1,
+    gradient_accumulation_steps=4,
     num_train_epochs=1,
     logging_steps=10,
     deepspeed="configs/ds_config.json",
@@ -153,12 +185,16 @@ training_args = SimPOConfig(
     beta=0.1,
     # Label smoothing
     label_smoothing=0.0,
+    # その他DeepSpeed Stage3に必要な設定
+    fp16=False,
+    bf16=False,
 )
 
 # Create trainer
 print("Setting up trainer...")
 trainer = CustomSimPOTrainer(
     model=model,
+    ref_model=model,  # pass in to bypass DPO Trainer check for ref model but is not actually used
     args=training_args,
     train_dataset=formatted_train_dataset,
     eval_dataset=formatted_test_dataset,

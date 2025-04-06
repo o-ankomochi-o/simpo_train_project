@@ -10,11 +10,12 @@ from typing import Dict, List, Literal, Optional, Tuple, Union
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from trl import CPOConfig, CPOTrainer
+from transformers import TrainingArguments
+from trl import DPOTrainer
 
 
 @dataclass
-class SimPOConfig(CPOConfig):
+class SimPOConfig(TrainingArguments):
     """
     Configuration class for SimPO training.
     """
@@ -27,21 +28,30 @@ class SimPOConfig(CPOConfig):
         default="sigmoid",
         metadata={"help": "The loss type to use. One of ['sigmoid', 'hinge']"},
     )
+    beta: Optional[float] = field(
+        default=0.1,
+        metadata={"help": "The beta parameter for SimPO loss."},
+    )
+    label_smoothing: Optional[float] = field(
+        default=0.0,
+        metadata={"help": "The label smoothing parameter for loss calculation."},
+    )
 
 
-class SimPOTrainer(CPOTrainer):
+class SimPOTrainer(DPOTrainer):
     """
     SimPO (Simple Policy Optimization) trainer implementation.
-    Extends CPOTrainer to implement SimPO loss function.
+    Extends DPOTrainer to implement SimPO loss function.
     """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)  # Pass all other arguments using **kwargs
         training_args = kwargs["args"]
         self.gamma = training_args.simpo_gamma
-        self.loss_type = training_args.loss_type
-        # Because we'll be using SimPO, we need to set alpha to 0
-        self.alpha = 0.0
+        if hasattr(training_args, "loss_type"):
+            self.loss_type = training_args.loss_type
+        else:
+            self.loss_type = "sigmoid"
 
     def simpo_loss(
         self,
