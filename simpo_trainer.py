@@ -1,102 +1,145 @@
-# simpo_trainer.py
-
-import gc
-from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 
 import torch
+import torch.nn as nn
 import torch.nn.functional as F
-import wandb
-from trl import DPOConfig, DPOTrainer
+from trl import DPOTrainer
 
 
-@dataclass
-class SimPOConfig(DPOConfig):
-    simpo_gamma: float = field(
-        default=0.7, metadata={"help": "Reward margin scaling factor for SimPO."}
-    )
+class SimPOTrainer(DPOTrainer):
 
-
-class SimplifiedSimPOTrainer(DPOTrainer):
-    """
-    DPOTrainerをベースにした、シンプルなSimPOトレーナー。
-    多様性損失を取り除き、メモリ使用量を最適化します。
-    """
-
-    def __init__(self, *args, **kwargs):
-        # DeepSpeed ZeRO-3とcreate_reference_model()の非互換性に対応
-        # ref_modelはすでに外部で初期化されていることを確認
-        if "ref_model" not in kwargs:
-            raise ValueError("When using DeepSpeed ZeRO-3, ref_model must be provided.")
-        super().__init__(*args, **kwargs)
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)  # Pass all other arguments using **kwargs
         training_args = kwargs["args"]
-        self.gamma = getattr(training_args, "simpo_gamma", 0.7)
+        self.gamma = training_args.gamma
 
-        # メモリを節約するためにref_modelを削除
-        if hasattr(self, "ref_model"):
-            # すでに初期化済みのref_modelを削除
-            del self.ref_model
-            torch.cuda.empty_cache()
-            gc.collect()
-            print("Reference model deleted to save memory")
+    def simpo_loss(
+        self,
+        policy_chosen_logps: torch.FloatTensor,
+        policy_rejected_logps: torch.FloatTensor,
+    ) -> Tuple[torch.FloatTensor, torch.FloatTensor, torch.FloatTensor]:
+        """Compute the SimPO loss for a batch of policy model log probabilities.
 
-    def _create_reference_model(self):
-        # リファレンスモデルを作成せず、より少ないメモリを使用
-        print("Using model as its own reference to save memory")
-        return self.model
+        Args:
+            policy_chosen_logps: Log probabilities of the policy model for the chosen responses. Shape: (batch_size,)
+            policy_rejected_logps: Log probabilities of the policy model for the rejected responses. Shape: (batch_size,)
 
-    def _prepare_deepspeed(self, model):
-        # DeepSpeedのセットアップ前にメモリをクリーンアップ
-        gc.collect()
-        torch.cuda.empty_cache()
-        return super()._prepare_deepspeed(model)
+        Returns:
+            A tuple of three tensors: (losses, chosen_rewards, rejected_rewards).
+            The losses tensor contains the SimPO loss for each example in the batch.
+            The chosen_rewards and rejected_rewards tensors contain the rewards for the chosen and rejected responses, respectively.
+        """
+        pi_logratios = policy_chosen_logps - policy_rejected_logps
+        gamma_logratios = self.gamma / self.beta
+        pi_logratios = pi_logratios.to(self.accelerator.device)
+        logits = pi_logratios - gamma_logratios
 
-    def compute_loss(self, model, inputs, return_outputs=False):
-        # トレーニング前に明示的にメモリをクリーンアップ
-        gc.collect()
-        torch.cuda.empty_cache()
+        if self.loss_type == "sigmoid":
+            losses = (
+                -F.logsigmoid(self.beta * logits) * (1 - self.label_smoothing)
+                - F.logsigmoid(-self.beta * logits) * self.label_smoothing
+            )
+        elif self.loss_type == "hinge":
+            losses = torch.relu(1 - self.beta * logits)
+        else:
+            raise ValueError(
+                f"Unknown loss type: {self.loss_type}. Should be one of ['sigmoid', 'hinge']"
+            )
 
-        # 親クラスのcompute_lossメソッドを呼び出す
-        # これはDPOTrainerの通常の損失計算を行う
-        loss, outputs = super().compute_loss(model, inputs, return_outputs=True)
+        chosen_rewards = (
+            self.beta * policy_chosen_logps.to(self.accelerator.device).detach()
+        )
+        rejected_rewards = (
+            self.beta * policy_rejected_logps.to(self.accelerator.device).detach()
+        )
 
-        # ここでSimPOの損失に修正する
-        # gamma変更のみ実装した最もシンプルな形式
-        if hasattr(self, "gamma") and self.gamma != 0.0:
-            # SimPOの修正: 単にgamma/betaをlogitsから引く
-            gamma_term = self.gamma / self.beta
+        return losses, chosen_rewards, rejected_rewards
 
-            # 既存のロジットを取得して調整
-            if "logits" in outputs:
-                # ロジットを修正
-                original_logits = outputs["logits"]
-                adjusted_logits = original_logits - gamma_term
-                outputs["logits"] = adjusted_logits
+    def concatenated_forward(
+        self, model: nn.Module, batch: Dict[str, Union[List, torch.LongTensor]]
+    ) -> Tuple[
+        torch.FloatTensor, torch.FloatTensor, torch.FloatTensor, torch.FloatTensor
+    ]:
+        """Run the given model on the given batch of inputs, concatenating the chosen and rejected inputs together.
 
-                # 損失を再計算
-                if self.loss_type == "sigmoid":
-                    loss = (
-                        -F.logsigmoid(self.beta * adjusted_logits)
-                        * (1 - self.label_smoothing)
-                        - F.logsigmoid(-self.beta * adjusted_logits)
-                        * self.label_smoothing
-                    ).mean()
-                else:  # hinge
-                    loss = torch.relu(1 - self.beta * adjusted_logits).mean()
+        We do this to avoid doing two forward passes, because it's faster for FSDP.
+        """
+        concatenated_batch = self.concatenated_inputs(
+            batch,
+            is_encoder_decoder=self.is_encoder_decoder,
+            label_pad_token_id=self.label_pad_token_id,
+            padding_value=self.padding_value,
+            device=self.accelerator.device,
+        )
+        len_chosen = batch["chosen_labels"].shape[0]
 
-        # メモリクリーンアップ
-        gc.collect()
-        torch.cuda.empty_cache()
+        model_kwargs = (
+            {
+                "labels": concatenated_batch["concatenated_labels"],
+                "decoder_input_ids": concatenated_batch.pop(
+                    "concatenated_decoder_input_ids", None
+                ),
+            }
+            if self.is_encoder_decoder
+            else {}
+        )
 
-        if return_outputs:
-            return loss, outputs
-        return loss
+        all_logits = model(
+            concatenated_batch["concatenated_input_ids"],
+            attention_mask=concatenated_batch["concatenated_attention_mask"],
+            use_cache=False,
+            **model_kwargs,
+        ).logits
 
-    def log(self, logs, start_time=None):
-        # 親クラスのlogメソッドを呼び出し
-        super().log(logs)
+        all_logps = self.get_batch_logps(
+            all_logits,
+            concatenated_batch["concatenated_labels"],
+            average_log_prob=True,
+            is_encoder_decoder=self.is_encoder_decoder,
+            label_pad_token_id=self.label_pad_token_id,
+        )
 
-        # wandbにログを記録（有効な場合）
-        if hasattr(self.args, "report_to") and "wandb" in self.args.report_to:
-            if wandb.run is not None:
-                wandb.log(logs)
+        chosen_logps = all_logps[:len_chosen]
+        rejected_logps = all_logps[len_chosen:]
+
+        chosen_logits = all_logits[:len_chosen]
+        rejected_logits = all_logits[len_chosen:]
+
+        return (chosen_logps, rejected_logps, chosen_logits, rejected_logits)
+
+    def get_batch_loss_metrics(
+        self,
+        model,
+        batch: Dict[str, Union[List, torch.LongTensor]],
+        train_eval: Literal["train", "eval"] = "train",
+    ):
+        """Compute the SimPO loss and other metrics for the given batch of inputs for train or test."""
+        metrics = {}
+
+        (
+            policy_chosen_logps,
+            policy_rejected_logps,
+            policy_chosen_logits,
+            policy_rejected_logits,
+        ) = self.concatenated_forward(model, batch)
+
+        losses, chosen_rewards, rejected_rewards = self.simpo_loss(
+            policy_chosen_logps, policy_rejected_logps
+        )
+        reward_accuracies = (chosen_rewards > rejected_rewards).float()
+
+        prefix = "eval_" if train_eval == "eval" else ""
+        metrics[f"{prefix}rewards/chosen"] = chosen_rewards.mean().cpu()
+        metrics[f"{prefix}rewards/rejected"] = rejected_rewards.mean().cpu()
+        metrics[f"{prefix}rewards/accuracies"] = reward_accuracies.mean().cpu()
+        metrics[f"{prefix}rewards/margins"] = (
+            (chosen_rewards - rejected_rewards).mean().cpu()
+        )
+        metrics[f"{prefix}logps/rejected"] = policy_rejected_logps.detach().mean().cpu()
+        metrics[f"{prefix}logps/chosen"] = policy_chosen_logps.detach().mean().cpu()
+        metrics[f"{prefix}logits/rejected"] = (
+            policy_rejected_logits.detach().mean().cpu()
+        )
+        metrics[f"{prefix}logits/chosen"] = policy_chosen_logits.detach().mean().cpu()
+
+        return losses.mean(), metrics

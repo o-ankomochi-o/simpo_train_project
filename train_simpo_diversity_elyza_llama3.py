@@ -22,8 +22,7 @@ import yaml
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from simpo_trainer import SimplifiedSimPOTrainer as SimPOTrainer
-from simpo_trainer import SimPOConfig
+from simpo_trainer import SimPOConfig, SimPOTrainer
 
 # バージョン情報の表示
 print(f"Python version: {sys.version}")
@@ -153,7 +152,7 @@ formatted_test_dataset = formatted_test_dataset.remove_columns(columns_to_remove
 training_args = SimPOConfig(
     output_dir="./output/simpo-trained-model",
     loss_type="sigmoid",
-    simpo_gamma=0.7,
+    gamma=0.7,
     per_device_train_batch_size=1,
     gradient_accumulation_steps=4,  # 勾配累積ステップを減らす
     num_train_epochs=1,
