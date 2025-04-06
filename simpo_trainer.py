@@ -1,9 +1,18 @@
+import gc
+from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from trl import DPOTrainer
+from trl import DPOConfig, DPOTrainer
+
+
+@dataclass
+class SimPOConfig(DPOConfig):
+    simpo_gamma: float = field(
+        default=0.7, metadata={"help": "Reward margin scaling factor for SimPO."}
+    )
 
 
 class SimPOTrainer(DPOTrainer):
