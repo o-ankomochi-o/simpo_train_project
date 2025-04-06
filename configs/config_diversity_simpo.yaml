@@ -19,7 +19,7 @@ training:
   # トレーニング設定
   per_device_train_batch_size: 2
   num_train_epochs: 1
-  learning_rate: 5e-6
+  learning_rate: 0.000005
   gradient_checkpointing: true
 
   # 評価・保存設定

@@ -156,13 +156,13 @@ training_args = DiversityCPOConfig(
     per_device_train_batch_size=config["training"]["per_device_train_batch_size"],
     num_train_epochs=config["training"]["num_train_epochs"],
     logging_steps=config["training"]["logging_steps"],
-    deepspeed="configs/ds_config_simpo.json",
+    deepspeed="configs/ds_config.json",
     gradient_checkpointing=config["training"]["gradient_checkpointing"],
     save_strategy=config["training"]["save_strategy"],
     save_steps=config["training"]["save_steps"],
     evaluation_strategy=config["training"]["evaluation_strategy"],
     eval_steps=config["training"]["eval_steps"],
-    learning_rate=config["training"]["learning_rate"],
+    learning_rate=float(config["training"]["learning_rate"]),
     report_to=config["training"]["report_to"],
 )
 
