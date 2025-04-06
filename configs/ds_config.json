@@ -22,9 +22,11 @@
     },
     "overlap_comm": true,
     "contiguous_gradients": true,
+    "stage3_max_live_parameters": 500000000,
+    "stage3_max_reuse_distance": 500000000,
     "reduce_bucket_size": 5e7,
-    "stage3_prefetch_bucket_size": 5e7,
-    "stage3_param_persistence_threshold": "auto",
+    "stage3_prefetch_bucket_size": 5000000,
+    "stage3_param_persistence_threshold": 10000,
     "stage3_gather_16bit_weights_on_model_save": true,
     "sub_group_size": 1e9
   },
