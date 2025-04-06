@@ -177,7 +177,7 @@ training_args = SimPOConfig(
     gradient_checkpointing=True,  # Save memory by using gradient checkpointing
     save_strategy="steps",
     save_steps=100,
-    evaluation_strategy="steps",
+    eval_strategy="steps",  # evaluation_strategyからeval_strategyに変更
     eval_steps=100,
     learning_rate=5e-6,
     report_to="wandb",
@@ -185,6 +185,9 @@ training_args = SimPOConfig(
     beta=0.1,
     # Label smoothing
     label_smoothing=0.0,
+    # DPOTrainer用の追加パラメータ
+    model_init_kwargs=None,
+    ref_model_init_kwargs=None,
     # その他DeepSpeed Stage3に必要な設定
     fp16=False,
     bf16=False,
@@ -192,12 +195,18 @@ training_args = SimPOConfig(
 
 # Create trainer
 print("Setting up trainer...")
+# モデルをコピーしてref_modelとして使用
+import copy
+
+ref_model = copy.deepcopy(model)
+
 trainer = CustomSimPOTrainer(
     model=model,
+    ref_model=ref_model,  # モデルのコピーを参照モデルとして渡す
     args=training_args,
     train_dataset=formatted_train_dataset,
     eval_dataset=formatted_test_dataset,
-    tokenizer=tokenizer,  # Changed from processing_class to tokenizer
+    tokenizer=tokenizer,
 )
 
 # Train model

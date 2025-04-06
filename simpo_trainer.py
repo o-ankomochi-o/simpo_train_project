@@ -36,6 +36,14 @@ class SimPOConfig(TrainingArguments):
         default=0.0,
         metadata={"help": "The label smoothing parameter for loss calculation."},
     )
+    model_init_kwargs: Optional[dict] = field(
+        default=None,
+        metadata={"help": "Dict passed to the model initialization."},
+    )
+    ref_model_init_kwargs: Optional[dict] = field(
+        default=None,
+        metadata={"help": "Dict passed to the reference model initialization."},
+    )
 
 
 class SimPOTrainer(DPOTrainer):
@@ -45,18 +53,49 @@ class SimPOTrainer(DPOTrainer):
     """
 
     def __init__(self, model=None, ref_model=None, **kwargs):
-        # ref_modelを実際には使用しないため、元のDPOTrainerのチェックをバイパスする
-        # ここでref_modelをNoneに設定し、親クラスのチェックをクリアする
-        if ref_model is None:
-            kwargs["peft_config"] = kwargs.get("peft_config", True)
+        # DPOTrainerに必要なパラメータを設定
+        kwargs["beta"] = kwargs.get(
+            "beta",
+            kwargs.get("args").beta if hasattr(kwargs.get("args"), "beta") else 0.1,
+        )
+        kwargs["label_smoothing"] = kwargs.get(
+            "label_smoothing",
+            (
+                kwargs.get("args").label_smoothing
+                if hasattr(kwargs.get("args"), "label_smoothing")
+                else 0.0
+            ),
+        )
+        kwargs["model_init_kwargs"] = kwargs.get(
+            "model_init_kwargs",
+            (
+                kwargs.get("args").model_init_kwargs
+                if hasattr(kwargs.get("args"), "model_init_kwargs")
+                else None
+            ),
+        )
+        kwargs["ref_model_init_kwargs"] = kwargs.get(
+            "ref_model_init_kwargs",
+            (
+                kwargs.get("args").ref_model_init_kwargs
+                if hasattr(kwargs.get("args"), "ref_model_init_kwargs")
+                else None
+            ),
+        )
 
+        # 親クラスの初期化
         super().__init__(model=model, ref_model=ref_model, **kwargs)
+
+        # SimPO固有のパラメータを設定
         training_args = kwargs["args"]
-        self.gamma = training_args.simpo_gamma
-        if hasattr(training_args, "loss_type"):
-            self.loss_type = training_args.loss_type
-        else:
-            self.loss_type = "sigmoid"
+        self.gamma = (
+            training_args.simpo_gamma if hasattr(training_args, "simpo_gamma") else 0.5
+        )
+        self.loss_type = (
+            training_args.loss_type
+            if hasattr(training_args, "loss_type")
+            else "sigmoid"
+        )
 
     def simpo_loss(
         self,
