@@ -69,8 +69,8 @@ print(train_dataset[0])
 print(f"Loading model: {config['model']['name']}...")
 tokenizer = AutoTokenizer.from_pretrained(config["model"]["name"])
 model = AutoModelForCausalLM.from_pretrained(config["model"]["name"])
-# 別のインスタンスとして読み込む（同じパラメータを持つが別のオブジェクト）
-ref_model = AutoModelForCausalLM.from_pretrained(config["model"]["name"])
+# # 別のインスタンスとして読み込む（同じパラメータを持つが別のオブジェクト）
+# ref_model = AutoModelForCausalLM.from_pretrained(config["model"]["name"])
 tokenizer.pad_token = tokenizer.eos_token
 
 wandb.init(project="test", name="SimPO_training_run")
@@ -108,11 +108,8 @@ def preprocess_function(example):
 print("Preprocessing dataset...")
 formatted_train_dataset = train_dataset.map(preprocess_function, batched=False)
 formatted_test_dataset = test_dataset.map(preprocess_function, batched=False)
-# トレーニングデータの一部だけを使ってテスト
-formatted_train_dataset = formatted_train_dataset.select(
-    range(min(1000, len(formatted_train_dataset)))
-)
-
+formatted_train_dataset = formatted_train_dataset.select(range(20))
+formatted_test_dataset = formatted_test_dataset.select(range(10))
 # Remove unnecessary columns
 columns_to_remove = list(
     set(formatted_train_dataset.column_names) - {"prompt", "chosen", "rejected"}
@@ -144,21 +141,24 @@ formatted_test_dataset = formatted_test_dataset.remove_columns(columns_to_remove
 #     dataloader_num_workers=1,  # データローダーの並列処理数を減らす
 #     dataloader_pin_memory=False,  # ピンメモリをオフにしてCPUメモリ使用量を減らす
 # )
+# Setup training arguments
 training_args = SimPOConfig(
     output_dir="./output/simpo-trained-model",
-    loss_type="sigmoid",  # DPOと同じ損失タイプを使用
-    simpo_gamma=0.7,  # SimPOのgamma値
+    loss_type="sigmoid",
+    simpo_gamma=0.7,
     per_device_train_batch_size=1,
-    gradient_accumulation_steps=8,
+    gradient_accumulation_steps=4,  # 勾配累積ステップを減らす
     num_train_epochs=1,
     logging_steps=10,
     deepspeed="configs/ds_config.json",
     gradient_checkpointing=True,
     save_strategy="no",
     evaluation_strategy="steps",
-    eval_steps=100,
+    eval_steps=10,  # 少ないデータセットに対応
     learning_rate=5e-6,
     report_to="wandb",
+    fp16=False,  # fp16をオフにして安定性向上
+    bf16=False,  # bf16もオフ
 )
 
 # Create trainer
@@ -166,7 +166,7 @@ print("Setting up trainer...")
 
 trainer = SimPOTrainer(
     model=model,
-    ref_model=ref_model,  # pass in to bypass DPO Trainer check for ref model but is not actually used
+    # ref_model=ref_model,  # pass in to bypass DPO Trainer check for ref model but is not actually used
     args=training_args,
     train_dataset=formatted_train_dataset,
     eval_dataset=formatted_test_dataset,

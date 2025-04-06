@@ -6,6 +6,7 @@ from typing import Optional
 
 import torch
 import torch.nn.functional as F
+import wandb
 from trl import DPOConfig, DPOTrainer
 
 
@@ -23,10 +24,34 @@ class SimplifiedSimPOTrainer(DPOTrainer):
     """
 
     def __init__(self, *args, **kwargs):
+        # ref_modelの保存と削除
+        if "ref_model" in kwargs:
+            orig_ref_model = kwargs["ref_model"]
+            # 一時的にref_modelを自分自身に設定
+            kwargs["ref_model"] = kwargs["model"]
+
         super().__init__(*args, **kwargs)
         training_args = kwargs["args"]
         self.gamma = getattr(training_args, "simpo_gamma", 0.7)
-        # DPOTrainerのほとんどの機能をそのまま継承
+
+        # メモリを節約するためにref_modelを削除
+        if hasattr(self, "ref_model"):
+            # すでに初期化済みのref_modelを削除
+            del self.ref_model
+            torch.cuda.empty_cache()
+            gc.collect()
+            print("Reference model deleted to save memory")
+
+    def _create_reference_model(self):
+        # リファレンスモデルを作成せず、より少ないメモリを使用
+        print("Using model as its own reference to save memory")
+        return self.model
+
+    def _prepare_deepspeed(self, model):
+        # DeepSpeedのセットアップ前にメモリをクリーンアップ
+        gc.collect()
+        torch.cuda.empty_cache()
+        return super()._prepare_deepspeed(model)
 
     def compute_loss(self, model, inputs, return_outputs=False):
         # トレーニング前に明示的にメモリをクリーンアップ
@@ -68,3 +93,12 @@ class SimplifiedSimPOTrainer(DPOTrainer):
         if return_outputs:
             return loss, outputs
         return loss
+
+    def log(self, logs, start_time=None):
+        # 親クラスのlogメソッドを呼び出し
+        super().log(logs)
+
+        # wandbにログを記録（有効な場合）
+        if hasattr(self.args, "report_to") and "wandb" in self.args.report_to:
+            if wandb.run is not None:
+                wandb.log(logs)
