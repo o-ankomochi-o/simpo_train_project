@@ -10,7 +10,7 @@ from typing import Dict, List, Literal, Optional, Tuple, Union
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from trl import CPOTrainer
+from trl import CPOConfig, CPOTrainer
 
 
 @dataclass
