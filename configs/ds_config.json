@@ -41,7 +41,7 @@
     "type": "WarmupCosineLR",
     "params": {
       "total_num_steps": "auto",
-      "warmup_num_steps": "auto"
+      "warmup_num_steps": 0
     }
   },
   "steps_per_print": 10,
