@@ -42,7 +42,7 @@
   "scheduler": {
     "type": "WarmupCosineLR",
     "params": {
-      "total_num_steps": "auto",
+      "total_num_steps": 31,
       "warmup_num_steps": 0
     }
   },
