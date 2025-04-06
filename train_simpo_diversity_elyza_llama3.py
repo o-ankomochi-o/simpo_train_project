@@ -107,6 +107,10 @@ def preprocess_function(example):
 print("Preprocessing dataset...")
 formatted_train_dataset = train_dataset.map(preprocess_function, batched=False)
 formatted_test_dataset = test_dataset.map(preprocess_function, batched=False)
+# トレーニングデータの一部だけを使ってテスト
+formatted_train_dataset = formatted_train_dataset.select(
+    range(min(1000, len(formatted_train_dataset)))
+)
 
 # Remove unnecessary columns
 columns_to_remove = list(
