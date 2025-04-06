@@ -1,0 +1,23 @@
+# SimPO Training Configuration
+
+# Model configuration
+model:
+  name: "elyza/ELYZA-japanese-Llama-3-8b-instruct" # モデル名を指定
+
+# Dataset configuration
+dataset:
+  name: "HuggingFaceH4/ultrafeedback_binarized" # データセット名またはパスを指定
+
+# Training parameters
+training:
+  learning_rate: 5e-6
+  batch_size: 2
+  epochs: 1
+  max_length: 2048
+  simpo_gamma: 0.7 # SimPOのgammaパラメータ
+  beta: 0.1 # SimPOのbetaパラメータ
+
+# Wandb configuration
+wandb:
+  project: "simpo-training"
+  name: "ELYZA-Llama-3-SimPO"

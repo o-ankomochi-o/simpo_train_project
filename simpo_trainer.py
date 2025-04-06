@@ -1,26 +1,47 @@
-import gc
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+SimPO Trainer implementation.
+"""
+
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
+from typing import Dict, List, Literal, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from trl import DPOConfig, DPOTrainer
+from trl import CPOTrainer
 
 
 @dataclass
-class SimPOConfig(DPOConfig):
-    simpo_gamma: float = field(
-        default=0.7, metadata={"help": "Reward margin scaling factor for SimPO."}
+class SimPOConfig(CPOConfig):
+    """
+    Configuration class for SimPO training.
+    """
+
+    simpo_gamma: Optional[float] = field(
+        default=0.5,
+        metadata={"help": "The target reward margin term in SimPO loss."},
+    )
+    loss_type: Optional[str] = field(
+        default="sigmoid",
+        metadata={"help": "The loss type to use. One of ['sigmoid', 'hinge']"},
     )
 
 
-class SimPOTrainer(DPOTrainer):
+class SimPOTrainer(CPOTrainer):
+    """
+    SimPO (Simple Policy Optimization) trainer implementation.
+    Extends CPOTrainer to implement SimPO loss function.
+    """
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)  # Pass all other arguments using **kwargs
         training_args = kwargs["args"]
-        self.gamma = training_args.gamma
+        self.gamma = training_args.simpo_gamma
+        self.loss_type = training_args.loss_type
+        # Because we'll be using SimPO, we need to set alpha to 0
+        self.alpha = 0.0
 
     def simpo_loss(
         self,
@@ -116,15 +137,13 @@ class SimPOTrainer(DPOTrainer):
 
         return (chosen_logps, rejected_logps, chosen_logits, rejected_logits)
 
-    def get_batch_loss_metrics(
-        self,
-        model,
-        batch: Dict[str, Union[List, torch.LongTensor]],
-        train_eval: Literal["train", "eval"] = "train",
-    ):
-        """Compute the SimPO loss and other metrics for the given batch of inputs for train or test."""
-        metrics = {}
+    def compute_loss(self, model, inputs, return_outputs=False):
+        """
+        Override the compute_loss method to use SimPO loss.
+        """
+        batch = self.prepare_batch(inputs)
 
+        # Forward pass
         (
             policy_chosen_logps,
             policy_rejected_logps,
@@ -132,23 +151,79 @@ class SimPOTrainer(DPOTrainer):
             policy_rejected_logits,
         ) = self.concatenated_forward(model, batch)
 
+        # Compute SimPO loss
         losses, chosen_rewards, rejected_rewards = self.simpo_loss(
             policy_chosen_logps, policy_rejected_logps
         )
-        reward_accuracies = (chosen_rewards > rejected_rewards).float()
 
-        prefix = "eval_" if train_eval == "eval" else ""
-        metrics[f"{prefix}rewards/chosen"] = chosen_rewards.mean().cpu()
-        metrics[f"{prefix}rewards/rejected"] = rejected_rewards.mean().cpu()
-        metrics[f"{prefix}rewards/accuracies"] = reward_accuracies.mean().cpu()
-        metrics[f"{prefix}rewards/margins"] = (
-            (chosen_rewards - rejected_rewards).mean().cpu()
-        )
-        metrics[f"{prefix}logps/rejected"] = policy_rejected_logps.detach().mean().cpu()
-        metrics[f"{prefix}logps/chosen"] = policy_chosen_logps.detach().mean().cpu()
-        metrics[f"{prefix}logits/rejected"] = (
-            policy_rejected_logits.detach().mean().cpu()
-        )
-        metrics[f"{prefix}logits/chosen"] = policy_chosen_logits.detach().mean().cpu()
+        # Calculate the mean loss
+        loss = losses.mean()
 
-        return losses.mean(), metrics
+        # Log metrics
+        self.log_metrics(
+            policy_chosen_logps,
+            policy_rejected_logps,
+            policy_chosen_logits,
+            policy_rejected_logits,
+            chosen_rewards,
+            rejected_rewards,
+            losses,
+        )
+
+        if return_outputs:
+            outputs = {
+                "chosen_logps": policy_chosen_logps,
+                "rejected_logps": policy_rejected_logps,
+                "chosen_logits": policy_chosen_logits,
+                "rejected_logits": policy_rejected_logits,
+            }
+            return loss, outputs
+
+        return loss
+
+    def log_metrics(
+        self,
+        policy_chosen_logps,
+        policy_rejected_logps,
+        policy_chosen_logits,
+        policy_rejected_logits,
+        chosen_rewards,
+        rejected_rewards,
+        losses,
+    ):
+        """
+        Log metrics for the current batch.
+        """
+        if not self.is_local_process_zero() or not hasattr(self, "state"):
+            return
+
+        if self.state.global_step % self.args.logging_steps == 0:
+            prefix = "eval_" if self.is_in_eval else ""
+
+            # Log rewards and accuracies
+            reward_accuracies = (chosen_rewards > rejected_rewards).float()
+
+            metrics = {}
+            metrics[f"{prefix}rewards/chosen"] = chosen_rewards.mean().cpu().item()
+            metrics[f"{prefix}rewards/rejected"] = rejected_rewards.mean().cpu().item()
+            metrics[f"{prefix}rewards/accuracies"] = (
+                reward_accuracies.mean().cpu().item()
+            )
+            metrics[f"{prefix}rewards/margins"] = (
+                (chosen_rewards - rejected_rewards).mean().cpu().item()
+            )
+            metrics[f"{prefix}logps/rejected"] = (
+                policy_rejected_logps.detach().mean().cpu().item()
+            )
+            metrics[f"{prefix}logps/chosen"] = (
+                policy_chosen_logps.detach().mean().cpu().item()
+            )
+            metrics[f"{prefix}logits/rejected"] = (
+                policy_rejected_logits.detach().mean().cpu().item()
+            )
+            metrics[f"{prefix}logits/chosen"] = (
+                policy_chosen_logits.detach().mean().cpu().item()
+            )
+            metrics[f"{prefix}loss/total"] = losses.mean().cpu().item()
+
+            self.log(metrics)
