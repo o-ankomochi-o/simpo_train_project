@@ -44,8 +44,13 @@ class SimPOTrainer(DPOTrainer):
     Extends DPOTrainer to implement SimPO loss function.
     """
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)  # Pass all other arguments using **kwargs
+    def __init__(self, model=None, ref_model=None, **kwargs):
+        # ref_modelを実際には使用しないため、元のDPOTrainerのチェックをバイパスする
+        # ここでref_modelをNoneに設定し、親クラスのチェックをクリアする
+        if ref_model is None:
+            kwargs["peft_config"] = kwargs.get("peft_config", True)
+
+        super().__init__(model=model, ref_model=ref_model, **kwargs)
         training_args = kwargs["args"]
         self.gamma = training_args.simpo_gamma
         if hasattr(training_args, "loss_type"):
