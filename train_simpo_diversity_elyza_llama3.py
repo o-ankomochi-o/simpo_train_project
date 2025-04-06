@@ -120,29 +120,45 @@ columns_to_remove = list(
 formatted_train_dataset = formatted_train_dataset.remove_columns(columns_to_remove)
 formatted_test_dataset = formatted_test_dataset.remove_columns(columns_to_remove)
 
-# Setup training arguments
+# # Setup training arguments
+# training_args = SimPOConfig(
+#     output_dir="./output/simpo-trained-model",
+#     loss_type="simpo",
+#     simpo_gamma=0.7,
+#     diversity_weight=0.05,  # 👈 多様性重視度
+#     diversity_alpha=1.0,  # 👈 エントロピー計算の温度
+#     per_device_train_batch_size=1,
+#     gradient_accumulation_steps=8,
+#     num_train_epochs=1,
+#     logging_steps=10,
+#     deepspeed="configs/ds_config.json",
+#     gradient_checkpointing=True,  # Save memory by using gradient checkpointing
+#     save_strategy="no",
+#     # save_steps=100,
+#     evaluation_strategy="steps",
+#     eval_steps=100,
+#     learning_rate=5e-6,
+#     report_to="wandb",
+#     sub_batch_size=1,  # メモリ最適化のためのサブバッチサイズ
+#     max_grad_norm=1.0,  # 勾配クリッピングを追加
+#     dataloader_num_workers=1,  # データローダーの並列処理数を減らす
+#     dataloader_pin_memory=False,  # ピンメモリをオフにしてCPUメモリ使用量を減らす
+# )
 training_args = SimPOConfig(
     output_dir="./output/simpo-trained-model",
-    loss_type="simpo",
-    simpo_gamma=0.7,
-    diversity_weight=0.05,  # 👈 多様性重視度
-    diversity_alpha=1.0,  # 👈 エントロピー計算の温度
+    loss_type="sigmoid",  # DPOと同じ損失タイプを使用
+    simpo_gamma=0.7,  # SimPOのgamma値
     per_device_train_batch_size=1,
     gradient_accumulation_steps=8,
     num_train_epochs=1,
     logging_steps=10,
     deepspeed="configs/ds_config.json",
-    gradient_checkpointing=True,  # Save memory by using gradient checkpointing
+    gradient_checkpointing=True,
     save_strategy="no",
-    # save_steps=100,
     evaluation_strategy="steps",
     eval_steps=100,
     learning_rate=5e-6,
     report_to="wandb",
-    sub_batch_size=1,  # メモリ最適化のためのサブバッチサイズ
-    max_grad_norm=1.0,  # 勾配クリッピングを追加
-    dataloader_num_workers=1,  # データローダーの並列処理数を減らす
-    dataloader_pin_memory=False,  # ピンメモリをオフにしてCPUメモリ使用量を減らす
 )
 
 # Create trainer
