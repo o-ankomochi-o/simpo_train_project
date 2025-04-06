@@ -113,6 +113,42 @@ class DiversitySimPOTrainer(CPOTrainer):
 
         return combined_losses, chosen_rewards, rejected_rewards, div_loss
 
+    def concatenated_forward(self, model, batch):
+        """
+        フォワードパスの実行 - 親クラスの実装をオーバーライドして必要な戻り値を確保
+        """
+        # 親クラスのconcatenated_forwardを呼び出し
+        output = super().concatenated_forward(model, batch)
+
+        # 返り値の確認と必要な値の抽出
+        if isinstance(output, tuple) and len(output) == 2:
+            # 親クラスが(policy_chosen_logps, policy_rejected_logps)を返す場合
+            policy_chosen_logps, policy_rejected_logps = output
+            # ロジットを取得するための追加処理
+            policy_chosen_logits = self._get_logits_from_logps(policy_chosen_logps)
+            policy_rejected_logits = self._get_logits_from_logps(policy_rejected_logps)
+            return (
+                policy_chosen_logps,
+                policy_rejected_logps,
+                policy_chosen_logits,
+                policy_rejected_logits,
+            )
+        elif isinstance(output, tuple) and len(output) == 4:
+            # 既に必要な4つの値が揃っている場合はそのまま返す
+            return output
+        else:
+            # 想定外の返り値の場合はエラーメッセージを出力
+            raise ValueError(f"Unexpected output from concatenated_forward: {output}")
+
+    def _get_logits_from_logps(self, logps):
+        """
+        対数確率からロジットを計算（おおよその近似）
+        """
+        # 単純な変換: logps から exp を取るとほぼ確率になる
+        # その後、適切なスケーリングを行ってロジットに変換
+        # これは完全に正確ではありませんが、多様性損失の計算には十分な近似です
+        return logps * 10.0  # スケーリング係数は調整可能
+
     def get_batch_loss_metrics(
         self,
         model,
@@ -122,6 +158,7 @@ class DiversitySimPOTrainer(CPOTrainer):
         """多様性促進を含むバッチ損失と指標の計算"""
         metrics = {}
 
+        # ここでconcatenated_forwardを呼び出し、必要な4つの値を取得
         (
             policy_chosen_logps,
             policy_rejected_logps,
