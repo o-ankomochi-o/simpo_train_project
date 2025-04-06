@@ -138,6 +138,10 @@ training_args = SimPOConfig(
     eval_steps=100,
     learning_rate=5e-6,
     report_to="wandb",
+    sub_batch_size=1,  # メモリ最適化のためのサブバッチサイズ
+    max_grad_norm=1.0,  # 勾配クリッピングを追加
+    dataloader_num_workers=1,  # データローダーの並列処理数を減らす
+    dataloader_pin_memory=False,  # ピンメモリをオフにしてCPUメモリ使用量を減らす
 )
 
 # Create trainer
