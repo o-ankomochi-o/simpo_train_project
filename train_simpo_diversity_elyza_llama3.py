@@ -22,7 +22,8 @@ import yaml
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from simpo_trainer import SimPOConfig, SimPOTrainer
+from simpo_trainer import SimplifiedSimPOTrainer as SimPOTrainer
+from simpo_trainer import SimPOConfig
 
 # バージョン情報の表示
 print(f"Python version: {sys.version}")
