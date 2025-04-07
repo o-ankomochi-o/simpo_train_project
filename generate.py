@@ -4,7 +4,9 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 def main():
     # 正しいローカルモデルのパスを指定
-    model_path = "/home/www_kyoko_ogawa/simpo_train_project/output/simpo-trained-model"
+    model_path = (
+        "/home/www_kyoko_ogawa/simpo_train_project/output/diversity-simpo-trained-model"
+    )
 
     tokenizer = AutoTokenizer.from_pretrained(model_path)
     model = AutoModelForCausalLM.from_pretrained(model_path, trust_remote_code=True)
