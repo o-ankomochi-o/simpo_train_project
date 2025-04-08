@@ -38,7 +38,7 @@ class DiversitySimPOTrainer2(CPOTrainer):
         拡張ログ機能 - wandbサポート付き
         """
         # 親クラスのlogメソッドを呼び出し
-        super().log(logs, start_time)
+        super().log(logs)
 
         # 親クラスの処理後にwandbにも記録
         if self.args.report_to == "wandb":
