@@ -102,7 +102,12 @@ model = AutoModelForCausalLM.from_pretrained(config["model"]["name"])
 tokenizer.pad_token = tokenizer.eos_token
 
 # Initialize wandb
-run_name = "DiversitySimPO_training_run"
+from datetime import datetime
+
+# タイムスタンプ付きの run_name を作成
+timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+run_name = f"DiversitySimPO_training_run_{timestamp}"
+
 wandb.init(project="elyza-llama-simpo", name=run_name)
 wandb.config.update(config)
 wandb.watch(model, log="all", log_freq=10)
@@ -138,8 +143,8 @@ def preprocess_function(example):
 print("Preprocessing dataset...")
 formatted_train_dataset = train_dataset.map(preprocess_function, batched=False)
 formatted_test_dataset = test_dataset.map(preprocess_function, batched=False)
-formatted_train_dataset = formatted_train_dataset.select(range(200))
-formatted_test_dataset = formatted_test_dataset.select(range(100))
+formatted_train_dataset = formatted_train_dataset.select(range(2000))
+formatted_test_dataset = formatted_test_dataset.select(range(1000))
 
 # Remove unnecessary columns
 columns_to_remove = list(
