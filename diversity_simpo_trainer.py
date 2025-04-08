@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-多様性指標を組み込んだSimPOトレーナーの拡張実装 - 修正版
+多様性指標を組み込んだSimPOトレーナーの拡張実装
 """
 
 from typing import Dict, List, Literal, Union

@@ -51,7 +51,9 @@ class DiversityCPOConfig(CPOConfig):
 
 
 # 拡張したトレーナークラスをインポート
-from diversity_simpo_trainer import DiversitySimPOTrainer
+# from diversity_simpo_trainer import DiversitySimPOTrainer
+
+from diversity_simpo_trainer2 import DiversitySimPOTrainer as DiversitySimPOTrainer
 
 # バージョン情報の表示
 print(f"Python version: {sys.version}")

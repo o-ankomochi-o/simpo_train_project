@@ -175,4 +175,38 @@ diversity_loss = -alpha * chosen_entropy + (1 - alpha) * kl_div
 
 ## ライセンス
 
-MIT
+## MIT
+
+CPOTrainer の SimPO 実装に関する発見
+
+SimPO 損失の計算方法:
+
+CPOTrainer では simpo_loss というメソッドは存在せず、cpo_loss メソッド内で loss_type="simpo"の場合に特別な処理が行われます
+SimPO の場合は特別なパラメータ simpo_gamma が使われています
+基本的な損失計算は-F.logsigmoid(self.beta \* logits)という形で行われます
+
+損失計算フロー:
+
+get_batch_loss_metrics メソッドが全体的な損失計算を担当
+concatenated_forward で選択および拒否された応答のロジットと対数確率を取得
+cpo_loss で実際の損失計算を行う
+
+修正アプローチ
+今回の修正では、元の CPOTrainer の実装をできるだけ尊重しつつ、必要最小限の変更で多様性促進機能を追加しました：
+
+最小限の継承:
+
+CPOTrainer を継承し、必要なメソッドだけをオーバーライド
+親クラスの get_batch_loss_metrics メソッドを呼び出してから、多様性損失を追加
+これにより、TRL ライブラリが更新されても互換性を保ちやすくなります
+
+多様性損失の追加:
+
+エントロピーベースの多様性促進機能を実装
+CPOTrainer の標準の損失計算に影響を与えずに多様性損失を追加
+親クラスの concatenated_forward 結果を利用して計算を行う
+
+パラメータの渡し方:
+
+標準の CPOConfig を使用し、追加のパラメータを直接追加
+これにより DiversitySimPOTrainer が diversity_weight と diversity_alpha を取得できる
