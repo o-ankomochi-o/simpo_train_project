@@ -420,7 +420,11 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
         # 平均メトリクスを計算
         avg_metrics = {}
         for key, values in evaluation_metrics.items():
-            avg_metrics[key] = sum(values) / len(values)
+            if isinstance(values[0], (int, float)):  # 数値だけ平均する
+                avg_metrics[key] = sum(values) / len(values)
+            else:
+                # 文字列（例：理由）などは最初の一つだけ代表で残す
+                avg_metrics[key] = values[0]
 
         return decoded_texts, avg_metrics
 
