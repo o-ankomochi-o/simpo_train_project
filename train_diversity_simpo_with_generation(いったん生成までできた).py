@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-OpenAI評価機能を持つ文章生成機能を追加した多様性SimPOトレーニングのメインスクリプト
+文章生成機能を追加した多様性SimPOトレーニングのメインスクリプト
 """
 
 import os
@@ -31,7 +31,7 @@ from trl import CPOConfig
 @dataclass
 class GenerationDiversityCPOConfig(CPOConfig):
     """
-    多様性指標と生成機能、OpenAI評価を追加したCPOConfig拡張
+    多様性指標と生成機能を追加したCPOConfig拡張
     """
 
     # 多様性重み - 多様性損失の全体的な重み付け
@@ -69,27 +69,9 @@ class GenerationDiversityCPOConfig(CPOConfig):
         },
     )
 
-    # OpenAI評価機能のオン・オフ
-    openai_evaluation: Optional[bool] = field(
-        default=True,
-        metadata={"help": "OpenAI APIを使用して生成テキストを評価するかどうか"},
-    )
-
-    # 使用するOpenAIモデル
-    openai_model: Optional[str] = field(
-        default="gpt-3.5-turbo",
-        metadata={"help": "評価に使用するOpenAIモデル名"},
-    )
-
 
 # 拡張したトレーナークラスをインポート
 from diversity_simpo_trainer import DiversitySimPOTrainer2WithGeneration
-
-# OpenAI API有効性確認
-if "OPENAI_API_KEY" not in os.environ:
-    print("WARNING: OPENAI_API_KEY環境変数が設定されていません。")
-    print("OpenAI APIを使用するには、以下のコマンドを実行してください：")
-    print("export OPENAI_API_KEY='your-api-key'")
 
 # バージョン情報の表示
 print(f"Python version: {sys.version}")
@@ -142,7 +124,7 @@ from datetime import datetime
 
 # タイムスタンプ付きの run_name を作成
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-run_name = f"DiversitySimPO_WithOpenAIEval_{timestamp}"
+run_name = f"DiversitySimPO_WithGeneration_{timestamp}"
 
 wandb.init(project="elyza-llama-simpo", name=run_name)
 wandb.config.update(config)
@@ -191,7 +173,7 @@ formatted_test_dataset = formatted_test_dataset.remove_columns(columns_to_remove
 
 # Setup training arguments - 拡張した設定クラスを使用
 training_args = GenerationDiversityCPOConfig(
-    output_dir="./output/diversity-simpo-with-openai-eval",
+    output_dir="./output/diversity-simpo-with-generation-model",
     loss_type="simpo",
     cpo_alpha=0.0,  # 純粋なSimPO
     simpo_gamma=config["training"]["simpo_gamma"],
@@ -200,11 +182,8 @@ training_args = GenerationDiversityCPOConfig(
     diversity_alpha=config["training"]["diversity_alpha"],
     # 生成パラメータを追加
     enable_generation=True,
-    generation_interval=25,  # 25ステップごとに生成（より頻繁にサンプルを確認）
-    generation_batch_size=1,  # バッチサイズを1に縮小（計算効率のため）
-    # OpenAI評価パラメータ
-    openai_evaluation=True,
-    openai_model="gpt-3.5-turbo",  # より高速なモデルを使用
+    generation_interval=50,  # 50ステップごとに生成（より頻繁にサンプルを確認）
+    generation_batch_size=2,
     # 一般的なトレーニングパラメータ
     per_device_train_batch_size=config["training"]["per_device_train_batch_size"],
     num_train_epochs=config["training"]["num_train_epochs"],
@@ -220,7 +199,7 @@ training_args = GenerationDiversityCPOConfig(
 )
 
 # Create trainer - DiversitySimPOTrainer2WithGenerationを使用
-print("Setting up trainer with generation and OpenAI evaluation capability...")
+print("Setting up trainer with generation capability...")
 trainer = DiversitySimPOTrainer2WithGeneration(
     model=model,
     args=training_args,
@@ -230,16 +209,16 @@ trainer = DiversitySimPOTrainer2WithGeneration(
 )
 
 # Train model
-print("Starting training with periodic text generation and OpenAI evaluation...")
+print("Starting training with periodic text generation...")
 trainer.train()
 
 # Save model
 print("Saving model...")
-trainer.save_model("./output/diversity-simpo-with-openai-eval")
-tokenizer.save_pretrained("./output/diversity-simpo-with-openai-eval")
+trainer.save_model("./output/diversity-simpo-with-generation-model")
+tokenizer.save_pretrained("./output/diversity-simpo-with-generation-model")
 
 # 生成機能をテスト
-print("\n===== トレーニング完了後の生成サンプル と OpenAI評価 =====")
+print("\n===== トレーニング完了後の生成サンプル =====")
 sample_prompts = [
     "人工知能の未来について教えてください。",
     "宇宙旅行の可能性についてどう思いますか？",

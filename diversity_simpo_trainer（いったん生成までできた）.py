@@ -1,18 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-多様性指標を組み込んだSimPOトレーナーの拡張実装 - OpenAI評価機能追加版
+多様性指標を組み込んだSimPOトレーナーの拡張実装 - 最小限の変更版
 """
 
-import json
-import os
-import time
 from typing import Dict, List, Literal, Union
 
 import torch
 import torch.nn.functional as F
 import wandb
-from openai import OpenAI
 from trl import CPOTrainer
 
 
@@ -162,9 +158,8 @@ class DiversitySimPOTrainer(CPOTrainer):
 
 class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
     """
-    文章生成機能と評価機能を追加したDiversitySimPOTrainer
-
-    OpenAIを使用して生成されたテキストを評価し、その結果をメトリクスとして記録します。
+    文章生成機能を追加したDiversitySimPOTrainer
+    損失計算前に文章を生成し、出力することができます
     """
 
     def __init__(self, **kwargs):
@@ -172,145 +167,19 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
         training_args = kwargs["args"]
 
         # 生成関連のハイパーパラメータ
-        self.enable_generation = getattr(training_args, "enable_generation", True)
-        self.generation_interval = getattr(training_args, "generation_interval", 100)
-        self.generation_batch_size = getattr(training_args, "generation_batch_size", 2)
-
-        # OpenAI評価関連のパラメータ
-        self.enable_openai_eval = getattr(training_args, "enable_openai_eval", False)
-        self.openai_model = getattr(training_args, "openai_model", "gpt-3.5-turbo")
-        self.openai_api_key = getattr(
-            training_args, "openai_api_key", os.environ.get("OPENAI_API_KEY", "")
-        )
-
-        # OpenAIクライアントの初期化
-        if self.enable_openai_eval and self.openai_api_key:
-            try:
-                self.openai_client = OpenAI(api_key=self.openai_api_key)
-                print(f"OpenAI client initialized with model: {self.openai_model}")
-            except Exception as e:
-                print(f"Failed to initialize OpenAI client: {str(e)}")
-                self.enable_openai_eval = False
-        else:
-            self.enable_openai_eval = False
-            if self.enable_openai_eval:
-                print("OpenAI evaluation disabled: API key not provided")
-
+        self.enable_generation = getattr(
+            training_args, "enable_generation", True
+        )  # 生成機能のオン/オフ
+        self.generation_interval = getattr(
+            training_args, "generation_interval", 100
+        )  # 何ステップおきに生成を実行するか
+        self.generation_batch_size = getattr(
+            training_args, "generation_batch_size", 2
+        )  # 生成に使用するバッチサイズ
         self.step_counter = 0
 
-        # 生成と評価結果を保存するディレクトリ
-        self.generation_dir = os.path.join(training_args.output_dir, "generations")
-        os.makedirs(self.generation_dir, exist_ok=True)
-
-    def evaluate_with_openai(self, prompt, generated_text):
-        """OpenAI APIを使用してテキストを評価する"""
-        if not self.enable_openai_eval or not hasattr(self, "openai_client"):
-            return {"error": "OpenAI evaluation not enabled"}
-
-        try:
-            # 評価指示
-            evaluation_prompt = f"""
-評価してください:
-
-プロンプト:
-{prompt}
-
-生成されたテキスト:
-{generated_text}
-
-以下の項目について0〜5の数値で評価し、それぞれの理由も説明してください：
-1. 関連性: プロンプトの内容に関連しているか
-2. 多様性: 表現や語彙の多様性があるか
-3. 訴求点: 異なる観点や主張を含んでいるか
-4. 読みやすさ: 文章構造や流れの自然さ
-5. 全体評価: 総合的な質
-
-結果は以下のJSON形式で返してください:
-```json
-{
-  "relevance": {"score": 数値, "reason": "理由"},
-  "diversity": {"score": 数値, "reason": "理由"},
-  "appeals": {"score": 数値, "reason": "理由"},
-  "readability": {"score": 数値, "reason": "理由"},
-  "overall": {"score": 数値, "reason": "理由"}
-}
-```
-"""
-
-            # APIリクエスト
-            response = self.openai_client.chat.completions.create(
-                model=self.openai_model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "あなたは文章評価の専門家です。指示に従って生成された文章を評価してください。",
-                    },
-                    {"role": "user", "content": evaluation_prompt},
-                ],
-                temperature=0,
-            )
-
-            response_text = response.choices[0].message.content.strip()
-
-            # JSONの抽出
-            try:
-                # JSON部分の抽出
-                json_start = response_text.find("{")
-                json_end = response_text.rfind("}") + 1
-                if json_start >= 0 and json_end > json_start:
-                    json_str = response_text[json_start:json_end]
-                    evaluation_result = json.loads(json_str)
-                else:
-                    # JSONが見つからない場合、全体をJSONとして解析
-                    evaluation_result = json.loads(response_text)
-
-                return evaluation_result
-            except json.JSONDecodeError:
-                print(f"Failed to parse OpenAI response as JSON: {response_text}")
-                return {
-                    "error": "Failed to parse response",
-                    "raw_response": response_text,
-                }
-
-        except Exception as e:
-            print(f"Error in OpenAI evaluation: {str(e)}")
-            return {"error": str(e)}
-
-    def extract_metrics_from_evaluation(self, evaluation_result):
-        """評価結果からメトリクスを抽出"""
-        metrics = {}
-
-        # エラーチェック
-        if "error" in evaluation_result:
-            print(f"Evaluation error: {evaluation_result['error']}")
-            return {"evaluation_error": 1.0}
-
-        try:
-            # 各評価項目のスコアを抽出
-            for category in [
-                "relevance",
-                "diversity",
-                "appeals",
-                "readability",
-                "overall",
-            ]:
-                if category in evaluation_result:
-                    if "score" in evaluation_result[category]:
-                        metrics[f"eval_{category}"] = float(
-                            evaluation_result[category]["score"]
-                        )
-
-            # 平均スコアを計算
-            if len(metrics) > 0:
-                metrics["eval_average_score"] = sum(metrics.values()) / len(metrics)
-
-            return metrics
-        except Exception as e:
-            print(f"Error extracting metrics: {str(e)}")
-            return {"evaluation_parsing_error": 1.0}
-
     def generate_samples(self, model, batch):
-        """バッチからサンプルを生成し、評価する関数"""
+        """バッチからサンプルを生成する関数"""
         # 小さいバッチを使用して効率化
         mini_batch = {
             "prompt_input_ids": batch["prompt_input_ids"][: self.generation_batch_size],
@@ -338,10 +207,9 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
                 outputs = model.generate(
                     input_ids=mini_batch["prompt_input_ids"],
                     attention_mask=mini_batch["prompt_attention_mask"],
-                    max_length=128,
-                    do_sample=True,
-                    temperature=0.8,
-                    num_beams=1,
+                    max_length=128,  # 短い長さに制限
+                    do_sample=False,  # 決定論的生成
+                    num_beams=1,  # ビームサーチなし
                     pad_token_id=self.processing_class.pad_token_id,
                 )
 
@@ -353,10 +221,6 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
             if was_gradient_checkpointing_enabled:
                 model.gradient_checkpointing_enable()
 
-        # 評価結果を保存するリスト
-        evaluations = []
-        evaluation_metrics = {}
-
         # プロンプトと生成文を表示
         print("\n===== 生成されたサンプル =====")
         for i, text in enumerate(decoded_texts):
@@ -365,53 +229,12 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
                 response = text[len(prompt) :]
                 print(f"[プロンプト {i}]: {prompt}")
                 print(f"[生成応答 {i}]: {response}")
-                print("-" * 80)
-
-                # OpenAIによる評価（有効な場合）
-                if self.enable_openai_eval:
-                    print(f"OpenAI評価中... プロンプト {i}")
-                    evaluation = self.evaluate_with_openai(prompt, response)
-                    evaluations.append(
-                        {
-                            "prompt": prompt,
-                            "response": response,
-                            "evaluation": evaluation,
-                        }
-                    )
-
-                    # メトリクスを抽出して集計
-                    sample_metrics = self.extract_metrics_from_evaluation(evaluation)
-                    for key, value in sample_metrics.items():
-                        if key in evaluation_metrics:
-                            evaluation_metrics[key].append(value)
-                        else:
-                            evaluation_metrics[key] = [value]
-
-                    # 評価結果を表示
-                    print(
-                        f"評価結果: {json.dumps(evaluation, ensure_ascii=False, indent=2)}"
-                    )
-                    print("-" * 80)
+                print("-" * 40)
             else:
                 print(f"[生成全文 {i}]: {text}")
-                print("-" * 80)
+                print("-" * 40)
 
-        # 評価結果をファイルに保存
-        if self.enable_openai_eval and evaluations:
-            timestamp = time.strftime("%Y%m%d_%H%M%S")
-            eval_file = os.path.join(
-                self.generation_dir, f"eval_step_{self.step_counter}_{timestamp}.json"
-            )
-            with open(eval_file, "w", encoding="utf-8") as f:
-                json.dump(evaluations, f, ensure_ascii=False, indent=2)
-            print(f"評価結果を保存しました: {eval_file}")
-
-        # 平均メトリクスを計算
-        avg_metrics = {}
-        for key, values in evaluation_metrics.items():
-            avg_metrics[key] = sum(values) / len(values)
-
-        return decoded_texts, avg_metrics
+        return decoded_texts
 
     def get_batch_loss_metrics(
         self,
@@ -419,24 +242,18 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
         batch,
         train_eval: Literal["train", "eval"] = "train",
     ):
-        evaluation_metrics = {}
-
-        # 一定間隔でサンプル生成と評価
+        # 一定間隔でサンプル生成と表示
         if (
             train_eval == "train"
             and self.enable_generation
             and self.step_counter % self.generation_interval == 0
         ):
             print(f"\n[Step {self.step_counter}] サンプル生成実行")
-            generated_texts, evaluation_metrics = self.generate_samples(model, batch)
+            generated_texts = self.generate_samples(model, batch)
             print(f"生成されたサンプル数: {len(generated_texts)}")
 
         # 通常の損失計算を実行
         loss, metrics = super().get_batch_loss_metrics(model, batch, train_eval)
-
-        # 評価メトリクスを追加
-        for key, value in evaluation_metrics.items():
-            metrics[key] = value
 
         # ステップカウンタを更新
         if train_eval == "train":
