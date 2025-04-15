@@ -154,3 +154,95 @@ class DiversitySimPOTrainer(CPOTrainer):
             print(f"Falling back to original implementation")
             # エラーが発生した場合は元の実装結果を返す
             return loss, metrics
+
+
+class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
+    """
+    文章生成機能を追加したDiversitySimPOTrainer2
+    損失計算前に文章を生成し、出力することができます
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        training_args = kwargs["args"]
+
+        # 生成関連のハイパーパラメータ
+        self.enable_generation = getattr(
+            training_args, "enable_generation", True
+        )  # 生成機能のオン/オフ
+        self.generation_interval = getattr(
+            training_args, "generation_interval", 100
+        )  # 何ステップおきに生成を実行するか
+        self.generation_batch_size = getattr(
+            training_args, "generation_batch_size", 2
+        )  # 生成に使用するバッチサイズ
+        self.step_counter = 0
+
+    def generate_samples(self, model, batch):
+        """バッチからサンプルを生成する関数"""
+        # 小さいバッチを使用して効率化
+        mini_batch = {
+            "prompt_input_ids": batch["prompt_input_ids"][: self.generation_batch_size],
+            "prompt_attention_mask": batch["prompt_attention_mask"][
+                : self.generation_batch_size
+            ],
+        }
+
+        # プロンプトのテキスト（あれば）を取得
+        prompt_texts = []
+        if "prompt" in batch:
+            prompt_texts = batch["prompt"][: self.generation_batch_size]
+
+        with torch.no_grad():
+            outputs = model.generate(
+                input_ids=mini_batch["prompt_input_ids"],
+                attention_mask=mini_batch["prompt_attention_mask"],
+                max_length=self.max_length,
+                do_sample=True,
+                temperature=0.8,
+                pad_token_id=self.processing_class.pad_token_id,
+            )
+
+            decoded_texts = self.processing_class.batch_decode(
+                outputs, skip_special_tokens=True
+            )
+
+        # プロンプトと生成文を表示
+        print("\n===== 生成されたサンプル =====")
+        for i, text in enumerate(decoded_texts):
+            if i < len(prompt_texts):
+                prompt = prompt_texts[i]
+                response = text[len(prompt) :]
+                print(f"[プロンプト {i}]: {prompt}")
+                print(f"[生成応答 {i}]: {response}")
+                print("-" * 40)
+            else:
+                print(f"[生成全文 {i}]: {text}")
+                print("-" * 40)
+
+        return decoded_texts
+
+    def get_batch_loss_metrics(
+        self,
+        model,
+        batch,
+        train_eval: Literal["train", "eval"] = "train",
+    ):
+        # 一定間隔でサンプル生成と表示
+        if (
+            train_eval == "train"
+            and self.enable_generation
+            and self.step_counter % self.generation_interval == 0
+        ):
+            print(f"\n[Step {self.step_counter}] サンプル生成実行")
+            generated_texts = self.generate_samples(model, batch)
+            print(f"生成されたサンプル数: {len(generated_texts)}")
+
+        # 通常の損失計算を実行
+        loss, metrics = super().get_batch_loss_metrics(model, batch, train_eval)
+
+        # ステップカウンタを更新
+        if train_eval == "train":
+            self.step_counter += 1
+
+        return loss, metrics
