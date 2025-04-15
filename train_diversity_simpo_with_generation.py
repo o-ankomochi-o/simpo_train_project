@@ -204,7 +204,7 @@ training_args = GenerationDiversityCPOConfig(
     generation_batch_size=1,  # バッチサイズを1に縮小（計算効率のため）
     # OpenAI評価パラメータ
     openai_evaluation=True,
-    openai_model="gpt-3.5-turbo",  # より高速なモデルを使用
+    openai_model="gpt-4o-2024-08-06",
     # 一般的なトレーニングパラメータ
     per_device_train_batch_size=config["training"]["per_device_train_batch_size"],
     num_train_epochs=config["training"]["num_train_epochs"],
