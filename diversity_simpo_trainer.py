@@ -251,6 +251,9 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
             )
 
             response_text = response.choices[0].message.content.strip()
+            response_text = response_text.strip("```json").strip("```").strip()
+            print("json")
+            print(response_text)
 
             # JSONの抽出
             try:
