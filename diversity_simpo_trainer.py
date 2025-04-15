@@ -279,7 +279,7 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
             return {"error": str(e)}
 
     def extract_metrics_from_evaluation(self, evaluation_result):
-        """評価結果からメトリクスを抽出"""
+        """OpenAI評価結果からスコアと理由を抽出し、メトリクスとして記録"""
         metrics = {}
 
         # エラーチェック
@@ -288,25 +288,34 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
             return {"evaluation_error": 1.0}
 
         try:
-            # 各評価項目のスコアを抽出
-            for category in [
-                "relevance",
-                "diversity",
-                "appeals",
-                "readability",
-                "overall",
-            ]:
-                if category in evaluation_result:
-                    if "score" in evaluation_result[category]:
-                        metrics[f"eval_{category}"] = float(
-                            evaluation_result[category]["score"]
-                        )
+            score_keys = ["relevance", "diversity", "appeals", "readability", "overall"]
+            score_sum = 0.0
+            count = 0
 
-            # 平均スコアを計算
-            if len(metrics) > 0:
-                metrics["eval_average_score"] = sum(metrics.values()) / len(metrics)
+            for key in score_keys:
+                if key in evaluation_result and isinstance(
+                    evaluation_result[key], dict
+                ):
+                    score = evaluation_result[key].get("score", None)
+                    reason = evaluation_result[key].get("reason", "")
+
+                    if isinstance(score, (int, float)):
+                        metrics[f"eval_{key}"] = float(score)
+                        metrics[f"eval_{key}_reason"] = reason
+                        score_sum += float(score)
+                        count += 1
+                    else:
+                        print(
+                            f"⚠️ スコアが不正または欠落: {key} → {evaluation_result[key]}"
+                        )
+                else:
+                    print(f"⚠️ キーが存在しないか形式が不正: {key}")
+
+            if count > 0:
+                metrics["eval_average_score"] = score_sum / count
 
             return metrics
+
         except Exception as e:
             print(f"Error extracting metrics: {str(e)}")
             return {"evaluation_parsing_error": 1.0}
