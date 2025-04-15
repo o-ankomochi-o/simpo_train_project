@@ -179,7 +179,14 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
         self.step_counter = 0
 
     def generate_samples(self, model, batch):
-        """バッチからサンプルを生成する関数"""
+        """バッチからサンプルを生成する関数 - マスタープロセスのみで実行"""
+        # マスタープロセス（ランク0）でのみ生成を実行
+        is_main_process = self.args.local_rank == 0
+
+        # マスタープロセスでなければ空のリストを返す
+        if not is_main_process:
+            return []
+
         # 小さいバッチを使用して効率化
         mini_batch = {
             "prompt_input_ids": batch["prompt_input_ids"][: self.generation_batch_size],
@@ -221,42 +228,55 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
             if was_gradient_checkpointing_enabled:
                 model.gradient_checkpointing_enable()
 
-        # プロンプトと生成文を表示
+        # 結果の表示（マスタープロセスでのみ実行される）
         print("\n===== 生成されたサンプル =====")
         for i, text in enumerate(decoded_texts):
             if i < len(prompt_texts):
                 prompt = prompt_texts[i]
                 response = text[len(prompt) :]
-                print(f"[プロンプト {i}]: {prompt}")
+                print(
+                    f"[プロンプト {i}]: {prompt[:100]}..."
+                    if len(prompt) > 100
+                    else f"[プロンプト {i}]: {prompt}"
+                )
                 print(f"[生成応答 {i}]: {response}")
-                print("-" * 40)
+                print("-" * 80)
             else:
                 print(f"[生成全文 {i}]: {text}")
-                print("-" * 40)
+                print("-" * 80)
+
+        print(f"生成されたサンプル数: {len(decoded_texts)}")
 
         return decoded_texts
 
-    def get_batch_loss_metrics(
-        self,
-        model,
-        batch,
-        train_eval: Literal["train", "eval"] = "train",
+
+def get_batch_loss_metrics(
+    self,
+    model,
+    batch,
+    train_eval: Literal["train", "eval"] = "train",
+):
+    # 一定間隔でサンプル生成と表示（マスタープロセスでのみ表示）
+    is_main_process = self.args.local_rank == 0
+
+    if (
+        train_eval == "train"
+        and self.enable_generation
+        and self.step_counter % self.generation_interval == 0
     ):
-        # 一定間隔でサンプル生成と表示
-        if (
-            train_eval == "train"
-            and self.enable_generation
-            and self.step_counter % self.generation_interval == 0
-        ):
+        if is_main_process:
             print(f"\n[Step {self.step_counter}] サンプル生成実行")
-            generated_texts = self.generate_samples(model, batch)
+
+        generated_texts = self.generate_samples(model, batch)
+
+        if is_main_process:
             print(f"生成されたサンプル数: {len(generated_texts)}")
 
-        # 通常の損失計算を実行
-        loss, metrics = super().get_batch_loss_metrics(model, batch, train_eval)
+    # 通常の損失計算を実行
+    loss, metrics = super().get_batch_loss_metrics(model, batch, train_eval)
 
-        # ステップカウンタを更新
-        if train_eval == "train":
-            self.step_counter += 1
+    # ステップカウンタを更新
+    if train_eval == "train":
+        self.step_counter += 1
 
-        return loss, metrics
+    return loss, metrics
