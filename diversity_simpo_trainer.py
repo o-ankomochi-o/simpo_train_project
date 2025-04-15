@@ -173,11 +173,11 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
 
         # 生成関連のハイパーパラメータ
         self.enable_generation = getattr(training_args, "enable_generation", True)
-        self.generation_interval = getattr(training_args, "generation_interval", 100)
+        self.generation_interval = getattr(training_args, "generation_interval", 25)
         self.generation_batch_size = getattr(training_args, "generation_batch_size", 2)
 
         # OpenAI評価関連のパラメータ
-        self.enable_openai_eval = getattr(training_args, "enable_openai_eval", False)
+        self.enable_openai_eval = getattr(training_args, "openai_evaluation", False)
         self.openai_model = getattr(training_args, "openai_model", "gpt-3.5-turbo")
         self.openai_api_key = getattr(
             training_args, "openai_api_key", os.environ.get("OPENAI_API_KEY", "")
@@ -441,5 +441,84 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
         # ステップカウンタを更新
         if train_eval == "train":
             self.step_counter += 1
+
+        return loss, metrics
+
+
+class EvaluationGuidedTrainer(DiversitySimPOTrainer2WithGeneration):
+    """
+    OpenAI評価スコアを損失関数に組み込んだトレーナー
+    """
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        training_args = kwargs["args"]
+
+        # 評価ベースの損失関連パラメータ
+        self.eval_loss_weight = getattr(training_args, "eval_loss_weight", 0.1)
+
+        # 評価スコアを保存する変数
+        self.latest_eval_scores = {}
+
+        # 最後の評価からのステップ数
+        self.steps_since_last_eval = 0
+
+        print(f"Initialized EvaluationGuidedTrainer with parameters:")
+        print(f"  - eval_loss_weight: {self.eval_loss_weight}")
+
+    def compute_evaluation_loss(self):
+        """評価スコアベースの損失を計算"""
+        # 評価スコアがない場合はゼロ損失を返す
+        if (
+            not self.latest_eval_scores
+            or "eval_average_score" not in self.latest_eval_scores
+        ):
+            return torch.tensor(0.0, device=self.model.device)
+
+        # 評価スコアから損失を計算
+        # スコアが高いほど損失が低くなるように負の符号をつける
+        # スコアは通常0-5なので、適切にスケーリングする
+        eval_score = self.latest_eval_scores.get("eval_average_score", 0)
+
+        # スコアが高いほど損失が小さくなるように変換
+        # 5点満点なら、5-score で0に近づくほど良いことになる
+        eval_loss = (5.0 - eval_score) / 5.0
+
+        scaled_loss = eval_loss
+
+        return torch.tensor(scaled_loss, device=self.model.device)
+
+    def generate_samples(self, model, batch):
+        """バッチからサンプルを生成し、評価する関数"""
+        # 親クラスの実装を呼び出す
+        generated_texts, avg_metrics = super().generate_samples(model, batch)
+
+        # 評価結果を保存
+        self.latest_eval_scores = avg_metrics
+        self.steps_since_last_eval = 0
+
+        return generated_texts, avg_metrics
+
+    def get_batch_loss_metrics(
+        self,
+        model,
+        batch,
+        train_eval: Literal["train", "eval"] = "train",
+    ):
+        # 通常の損失計算（多様性損失も含む）
+        loss, metrics = super().get_batch_loss_metrics(model, batch, train_eval)
+
+        if train_eval == "train":
+            # 評価スコアベースの損失を計算
+            eval_loss = self.compute_evaluation_loss()
+
+            # 損失に加算
+            loss = loss + self.eval_loss_weight * eval_loss
+
+            # メトリクスに追加
+            metrics["evaluation_based_loss"] = eval_loss.item()
+
+            # 評価からのステップ数を更新
+            self.steps_since_last_eval += 1
 
         return loss, metrics
