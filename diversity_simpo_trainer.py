@@ -193,19 +193,33 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
         if "prompt" in batch:
             prompt_texts = batch["prompt"][: self.generation_batch_size]
 
-        with torch.no_grad():
-            outputs = model.generate(
-                input_ids=mini_batch["prompt_input_ids"],
-                attention_mask=mini_batch["prompt_attention_mask"],
-                max_length=self.max_length,
-                do_sample=True,
-                temperature=0.8,
-                pad_token_id=self.processing_class.pad_token_id,
-            )
+        # 生成前に勾配チェックポイントを一時的に無効化
+        was_gradient_checkpointing_enabled = False
+        if (
+            hasattr(model, "is_gradient_checkpointing")
+            and model.is_gradient_checkpointing
+        ):
+            was_gradient_checkpointing_enabled = True
+            model.gradient_checkpointing_disable()
 
-            decoded_texts = self.processing_class.batch_decode(
-                outputs, skip_special_tokens=True
-            )
+        try:
+            with torch.no_grad():
+                outputs = model.generate(
+                    input_ids=mini_batch["prompt_input_ids"],
+                    attention_mask=mini_batch["prompt_attention_mask"],
+                    max_length=128,  # 短い長さに制限
+                    do_sample=False,  # 決定論的生成
+                    num_beams=1,  # ビームサーチなし
+                    pad_token_id=self.processing_class.pad_token_id,
+                )
+
+                decoded_texts = self.processing_class.batch_decode(
+                    outputs, skip_special_tokens=True
+                )
+        finally:
+            # 元の設定に戻す
+            if was_gradient_checkpointing_enabled:
+                model.gradient_checkpointing_enable()
 
         # プロンプトと生成文を表示
         print("\n===== 生成されたサンプル =====")
