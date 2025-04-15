@@ -178,15 +178,24 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
         )  # 生成に使用するバッチサイズ
         self.step_counter = 0
 
-    def generate_samples(self, model, batch):
-        """バッチからサンプルを生成する関数 - マスタープロセスのみで実行"""
-        # マスタープロセス（ランク0）でのみ生成を実行
+
+def generate_samples(self, model, batch):
+    """バッチからサンプルを生成する関数 - マスタープロセスのみで実行"""
+    # より確実なマスタープロセス判定
+    try:
         is_main_process = self.args.local_rank == 0
-
-        # マスタープロセスでなければ空のリストを返す
-        if not is_main_process:
+        # 追加のデバッグ情報
+        if is_main_process:
+            print(f"DEBUG: Main process detected, local_rank={self.args.local_rank}")
+        else:
+            print(f"DEBUG: Worker process detected, local_rank={self.args.local_rank}")
             return []
+    except Exception as e:
+        print(f"ERROR in is_main_process check: {str(e)}")
+        # エラー時は全プロセスで生成を試みる
+        is_main_process = True
 
+    try:
         # 小さいバッチを使用して効率化
         mini_batch = {
             "prompt_input_ids": batch["prompt_input_ids"][: self.generation_batch_size],
@@ -209,45 +218,57 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
             was_gradient_checkpointing_enabled = True
             model.gradient_checkpointing_disable()
 
-        try:
-            with torch.no_grad():
-                outputs = model.generate(
-                    input_ids=mini_batch["prompt_input_ids"],
-                    attention_mask=mini_batch["prompt_attention_mask"],
-                    max_length=128,  # 短い長さに制限
-                    do_sample=False,  # 決定論的生成
-                    num_beams=1,  # ビームサーチなし
-                    pad_token_id=self.processing_class.pad_token_id,
-                )
+        with torch.no_grad():
+            print(f"DEBUG: Starting generation, is_main_process={is_main_process}")
+            outputs = model.generate(
+                input_ids=mini_batch["prompt_input_ids"],
+                attention_mask=mini_batch["prompt_attention_mask"],
+                max_length=128,  # 短い長さに制限
+                do_sample=False,  # 決定論的生成
+                num_beams=1,  # ビームサーチなし
+                pad_token_id=self.processing_class.pad_token_id,
+            )
 
-                decoded_texts = self.processing_class.batch_decode(
-                    outputs, skip_special_tokens=True
-                )
-        finally:
-            # 元の設定に戻す
-            if was_gradient_checkpointing_enabled:
+            decoded_texts = self.processing_class.batch_decode(
+                outputs, skip_special_tokens=True
+            )
+            print(
+                f"DEBUG: Generation completed, decoded_texts length={len(decoded_texts)}"
+            )
+
+            # 結果の表示
+            print("\n===== 生成されたサンプル =====")
+            for i, text in enumerate(decoded_texts):
+                if i < len(prompt_texts):
+                    prompt = prompt_texts[i]
+                    response = text[len(prompt) :]
+                    print(
+                        f"[プロンプト {i}]: {prompt[:100]}..."
+                        if len(prompt) > 100
+                        else f"[プロンプト {i}]: {prompt}"
+                    )
+                    print(f"[生成応答 {i}]: {response}")
+                    print("-" * 80)
+                else:
+                    print(f"[生成全文 {i}]: {text}")
+                    print("-" * 80)
+
+            print(f"生成されたサンプル数: {len(decoded_texts)}")
+
+            return decoded_texts
+
+    except Exception as e:
+        print(f"ERROR in generate_samples: {str(e)}")
+        # エラー時は空のリストを返す
+        return []
+
+    finally:
+        # 元の設定に戻す
+        if was_gradient_checkpointing_enabled:
+            try:
                 model.gradient_checkpointing_enable()
-
-        # 結果の表示（マスタープロセスでのみ実行される）
-        print("\n===== 生成されたサンプル =====")
-        for i, text in enumerate(decoded_texts):
-            if i < len(prompt_texts):
-                prompt = prompt_texts[i]
-                response = text[len(prompt) :]
-                print(
-                    f"[プロンプト {i}]: {prompt[:100]}..."
-                    if len(prompt) > 100
-                    else f"[プロンプト {i}]: {prompt}"
-                )
-                print(f"[生成応答 {i}]: {response}")
-                print("-" * 80)
-            else:
-                print(f"[生成全文 {i}]: {text}")
-                print("-" * 80)
-
-        print(f"生成されたサンプル数: {len(decoded_texts)}")
-
-        return decoded_texts
+            except Exception as e:
+                print(f"ERROR restoring gradient checkpointing: {str(e)}")
 
 
 def get_batch_loss_metrics(
