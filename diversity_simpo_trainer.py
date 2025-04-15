@@ -39,14 +39,16 @@ class DiversitySimPOTrainer(CPOTrainer):
 
     def log(self, logs, start_time=None):
         """
-        拡張ログ機能 - wandbサポート付き
+        拡張ログ機能 - wandbサポート付き+ 文字列系メトリクスを除外
         """
+        # 数値メトリクスだけを渡す
+        numeric_logs = {k: v for k, v in logs.items() if isinstance(v, (int, float))}
         # 親クラスのlogメソッドを呼び出し
-        super().log(logs)
+        super().log(numeric_logs)
 
         # 親クラスの処理後にwandbにも記録
         if self.args.report_to == "wandb":
-            wandb.log(logs)
+            wandb.log(numeric_logs)
 
     def diversity_loss(
         self,
