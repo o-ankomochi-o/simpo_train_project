@@ -57,11 +57,15 @@ class DiversitySimPOTrainer(CPOTrainer):
         print(f"📝 ログ記録発生！現在の global_step: {self.state.global_step}")
         # 数値ログだけフィルタ
         numeric_logs = {k: v for k, v in logs.items() if isinstance(v, (int, float))}
-
         # ローカルログ出力（任意）
         print(f"📊【ステップ {self.state.global_step}】WandBに送信するメトリクス一覧:")
+
+        print("評価関連メトリクス検索中:")
         for k, v in numeric_logs.items():
-            print(f"　🔸 {k}: {v}")
+            if k.startswith("eval_"):
+                print(f"　🔹 評価メトリクス: {k}: {v}")
+            else:
+                print(f"　🔸 {k}: {v}")
 
         # wandb ログ
         if self.args.report_to == "wandb":
@@ -372,7 +376,7 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
                 outputs = model.generate(
                     input_ids=mini_batch["prompt_input_ids"],
                     attention_mask=mini_batch["prompt_attention_mask"],
-                    max_length=128,
+                    max_new_tokens=128,
                     do_sample=True,
                     temperature=0.8,
                     num_beams=1,
@@ -476,8 +480,10 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
         loss, metrics = super().get_batch_loss_metrics(model, batch, train_eval)
 
         # 評価メトリクスを追加
+        print(f"評価メトリクスの内容: {evaluation_metrics}")  # デバッグ用
         for key, value in evaluation_metrics.items():
             metrics[key] = value
+        print(f"評価メトリクスの内容: {evaluation_metrics}")  # デバッグ用
 
         # ステップカウンタを更新
         if train_eval == "train":
