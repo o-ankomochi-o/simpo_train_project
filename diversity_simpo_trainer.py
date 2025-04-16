@@ -332,6 +332,7 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
 
             if count > 0:
                 metrics["eval_average_score"] = score_sum / count
+                print(f"✅ 平均スコア: {metrics['eval_average_score']}")
 
             return metrics
 
