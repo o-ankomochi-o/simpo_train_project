@@ -325,11 +325,16 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
                     print(f"  - スコア: {score}")
                     print(f"  - 理由: {reason}")
 
-                    if isinstance(score, (int, float)):
-                        metrics[f"eval_{key}"] = float(score)
-                        metrics[f"eval_{key}_reason"] = reason
-                        score_sum += float(score)
-                        count += 1
+                    # スコアを確実に数値型に変換
+                    if score is not None:
+                        try:
+                            float_score = float(score)
+                            metrics[f"eval_{key}"] = float_score
+                            metrics[f"eval_{key}_reason"] = reason
+                            score_sum += float_score
+                            count += 1
+                        except (ValueError, TypeError):
+                            print(f"⚠️ スコアの数値変換に失敗: {key} → {score}")
                     else:
                         print(
                             f"⚠️ スコアが不正または欠落: {key} → {evaluation_result[key]}"
@@ -338,7 +343,7 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
                     print(f"⚠️ キーが存在しないか形式が不正: {key}")
 
             if count > 0:
-                metrics["eval_average_score"] = score_sum / count
+                metrics["eval_average_score"] = float(score_sum / count)
                 print(f"✅ 平均スコア: {metrics['eval_average_score']}")
 
             return metrics
