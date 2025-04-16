@@ -200,7 +200,7 @@ training_args = GenerationDiversityCPOConfig(
     diversity_alpha=config["training"]["diversity_alpha"],
     # 生成パラメータを追加
     enable_generation=True,
-    generation_interval=25,  # 25ステップごとに生成（より頻繁にサンプルを確認）
+    generation_interval=1,  # 25ステップごとに生成（より頻繁にサンプルを確認）
     generation_batch_size=1,  # バッチサイズを1に縮小（計算効率のため）
     # OpenAI評価パラメータ
     openai_evaluation=True,
