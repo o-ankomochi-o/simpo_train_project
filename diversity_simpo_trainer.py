@@ -52,31 +52,18 @@ class DiversitySimPOTrainer(CPOTrainer):
 
     def log(self, logs, start_time=None):
         """
-        拡張ログ機能 - 評価メトリクスを正しく処理
+        拡張ログ機能 - super().log() を呼ばずに独自管理
         """
         print(f"📝 ログ記録発生！現在の global_step: {self.state.global_step}")
-        print(logs)
-
-        # 処理済みログを保存する辞書
-        processed_logs = {}
-
-        # 全てのキーをループ処理
-        for k, v in logs.items():
-            # 評価関連のメトリクス
-            if k.startswith("eval_") and not k.endswith("_reason"):
-                # 評価スコアは数値型に変換
-                try:
-                    processed_logs[k] = float(v)
-                except (ValueError, TypeError):
-                    # 変換できない場合はスキップ
-                    continue
-            # 通常の数値メトリクス
-            elif isinstance(v, (int, float)):
-                processed_logs[k] = v
-
-        # ローカルログ出力
+        print(f"logsに含まれるキー: {list(logs.keys())}")
+        print(f"評価関連のキー: {[k for k in logs.keys() if k.startswith('eval_')]}")
+        # 数値ログだけフィルタ
+        numeric_logs = {k: v for k, v in logs.items() if isinstance(v, (int, float))}
+        # ローカルログ出力（任意）
         print(f"📊【ステップ {self.state.global_step}】WandBに送信するメトリクス一覧:")
-        for k, v in processed_logs.items():
+
+        print("評価関連メトリクス検索中:")
+        for k, v in numeric_logs.items():
             if k.startswith("eval_"):
                 print(f"　🔹 評価メトリクス: {k}: {v}")
             else:
@@ -84,7 +71,7 @@ class DiversitySimPOTrainer(CPOTrainer):
 
         # wandb ログ
         if self.args.report_to == "wandb":
-            wandb.log(processed_logs, step=self.state.global_step)
+            wandb.log(numeric_logs, step=self.state.global_step)
 
     def diversity_loss(
         self,
@@ -186,7 +173,10 @@ class DiversitySimPOTrainer(CPOTrainer):
             # 多様性関連の指標を追加
             prefix = "eval_" if train_eval == "eval" else ""
             metrics[f"{prefix}diversity/loss"] = (
-                self.accelerator.gather_for_metrics(div_loss).detach().mean().item()
+                self.accelerator.gather_for_metrics(div_loss)  # 複数GPUからの値を集約
+                .detach()  # 計算グラフから切り離す
+                .mean()  # 集約された値の平均を計算
+                .item()  # PyTorchテンソルからPythonのスカラー値に変換
             )
 
             return loss, metrics
@@ -510,15 +500,26 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
         # 通常の損失計算を実行
         loss, metrics = super().get_batch_loss_metrics(model, batch, train_eval)
 
-        # 評価メトリクスを追加
+        # 評価メトリクスを追加（同期処理を適用）
         print(f"評価メトリクスの内容: {evaluation_metrics}")  # デバッグ用
         for key, value in evaluation_metrics.items():
-            metrics[key] = value
-        print(f"評価メトリクスの内容: {evaluation_metrics}")  # デバッグ用
+            if not key.endswith("_reason"):  # 理由フィールドは除外
+                # スカラー値をテンソルに変換してから同期処理
+                if isinstance(value, (int, float)):
+                    tensor_value = torch.tensor(value, device=self.model.device)
+                    # acceleratorを使って同期
+                    metrics[key] = (
+                        self.accelerator.gather_for_metrics(tensor_value).mean().item()
+                    )
+            else:
+                # 理由フィールドはそのまま（ただしログには含まれない可能性あり）
+                metrics[key] = value
 
         # ステップカウンタを更新
         if train_eval == "train":
             self.step_counter += 1
+
+        print(f"最終的なmetrics辞書の内容: {metrics}")
 
         return loss, metrics
 
