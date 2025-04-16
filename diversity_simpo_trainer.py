@@ -54,11 +54,14 @@ class DiversitySimPOTrainer(CPOTrainer):
         """
         拡張ログ機能 - super().log() を呼ばずに独自管理
         """
+        print(f"📝 ログ記録発生！現在の global_step: {self.state.global_step}")
         # 数値ログだけフィルタ
         numeric_logs = {k: v for k, v in logs.items() if isinstance(v, (int, float))}
 
         # ローカルログ出力（任意）
-        print(f"[Step {self.state.global_step}] Logging metrics: {numeric_logs}")
+        print(f"📊【ステップ {self.state.global_step}】WandBに送信するメトリクス一覧:")
+        for k, v in numeric_logs.items():
+            print(f"　🔸 {k}: {v}")
 
         # wandb ログ
         if self.args.report_to == "wandb":
