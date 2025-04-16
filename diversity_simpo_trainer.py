@@ -398,6 +398,9 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
                 if self.enable_openai_eval:
                     print(f"OpenAI評価中... プロンプト {i}")
                     evaluation = self.evaluate_with_openai(prompt, response)
+                    print("==============openaiの評価===============")
+                    print(evaluation)
+                    print("==========================================")
                     evaluations.append(
                         {
                             "prompt": prompt,
