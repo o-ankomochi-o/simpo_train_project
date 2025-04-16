@@ -300,7 +300,7 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
 
         # エラーチェック
         if "error" in evaluation_result:
-            print(f"Evaluation error: {evaluation_result['error']}")
+            print(f"評価の中にエラーがありました: {evaluation_result['error']}")
             return {"evaluation_error": 1.0}
 
         try:
@@ -314,6 +314,9 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
                 ):
                     score = evaluation_result[key].get("score", None)
                     reason = evaluation_result[key].get("reason", "")
+                    print(f"🔍 キー: {key}")
+                    print(f"  - スコア: {score}")
+                    print(f"  - 理由: {reason}")
 
                     if isinstance(score, (int, float)):
                         metrics[f"eval_{key}"] = float(score)
