@@ -55,6 +55,7 @@ class DiversitySimPOTrainer(CPOTrainer):
         拡張ログ機能 - super().log() を呼ばずに独自管理
         """
         print(f"📝 ログ記録発生！現在の global_step: {self.state.global_step}")
+        print(logs)
         # 数値ログだけフィルタ
         numeric_logs = {k: v for k, v in logs.items() if isinstance(v, (int, float))}
         # ローカルログ出力（任意）
@@ -302,23 +303,24 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
             return {"error": str(e)}
 
     def extract_metrics_from_evaluation(self, evaluation_result):
-        """OpenAI評価結果からスコアと理由を抽出し、メトリクスとして記録"""
+        """OpenAI評価結果からスコアと理由を抽出し、確実に数値型でメトリクスとして記録"""
         metrics = {}
 
         # エラーチェック
         if "error" in evaluation_result:
             print(f"評価の中にエラーがありました: {evaluation_result['error']}")
-            return {"evaluation_error": 1.0}
+            return {"evaluation_error": 1.0}  # 必要なエラー表示用の値
 
         try:
             score_keys = ["relevance", "diversity", "appeals", "readability", "overall"]
-            score_sum = 0.0
+            score_sum = 0.0  # 確実に float 型で初期化
             count = 0
 
             for key in score_keys:
                 if key in evaluation_result and isinstance(
                     evaluation_result[key], dict
                 ):
+                    # score 値を取得
                     score = evaluation_result[key].get("score", None)
                     reason = evaluation_result[key].get("reason", "")
                     print(f"🔍 キー: {key}")
@@ -328,13 +330,16 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
                     # スコアを確実に数値型に変換
                     if score is not None:
                         try:
+                            # int, float, str など様々な型に対応
                             float_score = float(score)
+                            # 必ず float 型として格納
                             metrics[f"eval_{key}"] = float_score
                             metrics[f"eval_{key}_reason"] = reason
                             score_sum += float_score
                             count += 1
                         except (ValueError, TypeError):
                             print(f"⚠️ スコアの数値変換に失敗: {key} → {score}")
+                            # 変換失敗時はキーを追加しない
                     else:
                         print(
                             f"⚠️ スコアが不正または欠落: {key} → {evaluation_result[key]}"
@@ -342,14 +347,21 @@ class DiversitySimPOTrainer2WithGeneration(DiversitySimPOTrainer):
                 else:
                     print(f"⚠️ キーが存在しないか形式が不正: {key}")
 
+            # 平均スコアを計算
             if count > 0:
                 metrics["eval_average_score"] = float(score_sum / count)
                 print(f"✅ 平均スコア: {metrics['eval_average_score']}")
+
+            # 数値型確認のための追加ログ
+            for k, v in metrics.items():
+                if k.startswith("eval_") and not k.endswith("_reason"):
+                    print(f"🔢 確認: {k} は {type(v).__name__} 型で値は {v}")
 
             return metrics
 
         except Exception as e:
             print(f"Error extracting metrics: {str(e)}")
+            # エラー時は必要最小限の情報のみ
             return {"evaluation_parsing_error": 1.0}
 
     def generate_samples(self, model, batch):
