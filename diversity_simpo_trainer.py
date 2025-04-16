@@ -52,17 +52,31 @@ class DiversitySimPOTrainer(CPOTrainer):
 
     def log(self, logs, start_time=None):
         """
-        拡張ログ機能 - super().log() を呼ばずに独自管理
+        拡張ログ機能 - 評価メトリクスを正しく処理
         """
         print(f"📝 ログ記録発生！現在の global_step: {self.state.global_step}")
         print(logs)
-        # 数値ログだけフィルタ
-        numeric_logs = {k: v for k, v in logs.items() if isinstance(v, (int, float))}
-        # ローカルログ出力（任意）
-        print(f"📊【ステップ {self.state.global_step}】WandBに送信するメトリクス一覧:")
 
-        print("評価関連メトリクス検索中:")
-        for k, v in numeric_logs.items():
+        # 処理済みログを保存する辞書
+        processed_logs = {}
+
+        # 全てのキーをループ処理
+        for k, v in logs.items():
+            # 評価関連のメトリクス
+            if k.startswith("eval_") and not k.endswith("_reason"):
+                # 評価スコアは数値型に変換
+                try:
+                    processed_logs[k] = float(v)
+                except (ValueError, TypeError):
+                    # 変換できない場合はスキップ
+                    continue
+            # 通常の数値メトリクス
+            elif isinstance(v, (int, float)):
+                processed_logs[k] = v
+
+        # ローカルログ出力
+        print(f"📊【ステップ {self.state.global_step}】WandBに送信するメトリクス一覧:")
+        for k, v in processed_logs.items():
             if k.startswith("eval_"):
                 print(f"　🔹 評価メトリクス: {k}: {v}")
             else:
@@ -70,7 +84,7 @@ class DiversitySimPOTrainer(CPOTrainer):
 
         # wandb ログ
         if self.args.report_to == "wandb":
-            wandb.log(numeric_logs, step=self.state.global_step)
+            wandb.log(processed_logs, step=self.state.global_step)
 
     def diversity_loss(
         self,
