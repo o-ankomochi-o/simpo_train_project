@@ -23,7 +23,7 @@ training:
   gradient_checkpointing: true
 
   # 評価・保存設定
-  logging_steps: 5
+  logging_steps: 1
   evaluation_strategy: "steps"
   eval_steps: 100
   save_strategy: "no"
