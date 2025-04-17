@@ -37,41 +37,18 @@ class DiversitySimPOTrainer(CPOTrainer):
         print(f"  - diversity_alpha: {self.diversity_alpha}")
         print(f"  - loss_type: {self.loss_type}")
 
-    # def log(self, logs, start_time=None):
-    # """
-    # 拡張ログ機能 - wandbサポート付き+ 文字列系メトリクスを除外
-    # """
-    # # 数値メトリクスだけを渡す
-    # numeric_logs = {k: v for k, v in logs.items() if isinstance(v, (int, float))}
-    # # 親クラスのlogメソッドを呼び出し
-    # super().log(numeric_logs)
-
-    # # 親クラスの処理後にwandbにも記録
-    # if self.args.report_to == "wandb":
-    #     wandb.log(numeric_logs)
-
     def log(self, logs, start_time=None):
         """
-        拡張ログ機能 - super().log() を呼ばずに独自管理
+        拡張ログ機能 - wandbサポート付き+ 文字列系メトリクスを除外
         """
-        print(f"📝 ログ記録発生！現在の global_step: {self.state.global_step}")
-        print(f"logsに含まれるキー: {list(logs.keys())}")
-        print(f"評価関連のキー: {[k for k in logs.keys() if k.startswith('eval_')]}")
-        # 数値ログだけフィルタ
+        # 数値メトリクスだけを渡す
         numeric_logs = {k: v for k, v in logs.items() if isinstance(v, (int, float))}
-        # ローカルログ出力（任意）
-        print(f"📊【ステップ {self.state.global_step}】WandBに送信するメトリクス一覧:")
+        # 親クラスのlogメソッドを呼び出し
+        super().log(numeric_logs)
 
-        print("評価関連メトリクス検索中:")
-        for k, v in numeric_logs.items():
-            if k.startswith("eval_"):
-                print(f"　🔹 評価メトリクス: {k}: {v}")
-            else:
-                print(f"　🔸 {k}: {v}")
-
-        # wandb ログ
+        # 親クラスの処理後にwandbにも記録
         if self.args.report_to == "wandb":
-            wandb.log(numeric_logs, step=self.state.global_step)
+            wandb.log(numeric_logs)
 
     def diversity_loss(
         self,
