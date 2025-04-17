@@ -75,30 +75,42 @@ class GenerationEvaluationTrainer(CPOTrainer):
         print(f"  - eval_loss_weight: {self.eval_loss_weight}")
         print(f"  - generation_interval: {self.generation_interval}")
 
+    # def log(self, logs, start_time=None):
+    #     """
+    #     拡張ログ機能 - super().log() を呼ばずに独自管理
+    #     """
+    #     print(f"📝 ログ記録発生！現在の global_step: {self.state.global_step}")
+    #     print(f"logsに含まれるキー: {list(logs.keys())}")
+    #     print(f"評価関連のキー: {[k for k in logs.keys() if k.startswith('eval_')]}")
+
+    #     # 数値ログだけフィルタ
+    #     numeric_logs = {k: v for k, v in logs.items() if isinstance(v, (int, float))}
+
+    #     # ローカルログ出力
+    #     print(f"📊【ステップ {self.state.global_step}】WandBに送信するメトリクス一覧:")
+
+    #     print("評価関連メトリクス検索中:")
+    #     for k, v in numeric_logs.items():
+    #         if k.startswith("eval_"):
+    #             print(f"　🔹 評価メトリクス: {k}: {v}")
+    #         else:
+    #             print(f"　🔸 {k}: {v}")
+
+    #     # wandb ログ
+    #     if self.args.report_to == "wandb":
+    #         wandb.log(numeric_logs, step=self.state.global_step)
     def log(self, logs, start_time=None):
         """
-        拡張ログ機能 - super().log() を呼ばずに独自管理
+        拡張ログ機能 - wandbサポート付き+ 文字列系メトリクスを除外
         """
-        print(f"📝 ログ記録発生！現在の global_step: {self.state.global_step}")
-        print(f"logsに含まれるキー: {list(logs.keys())}")
-        print(f"評価関連のキー: {[k for k in logs.keys() if k.startswith('eval_')]}")
-
-        # 数値ログだけフィルタ
+        # 数値メトリクスだけを渡す
         numeric_logs = {k: v for k, v in logs.items() if isinstance(v, (int, float))}
+        # 親クラスのlogメソッドを呼び出し
+        super().log(numeric_logs)
 
-        # ローカルログ出力
-        print(f"📊【ステップ {self.state.global_step}】WandBに送信するメトリクス一覧:")
-
-        print("評価関連メトリクス検索中:")
-        for k, v in numeric_logs.items():
-            if k.startswith("eval_"):
-                print(f"　🔹 評価メトリクス: {k}: {v}")
-            else:
-                print(f"　🔸 {k}: {v}")
-
-        # wandb ログ
+        # 親クラスの処理後にwandbにも記録
         if self.args.report_to == "wandb":
-            wandb.log(numeric_logs, step=self.state.global_step)
+            wandb.log(numeric_logs)
 
     def evaluate_with_openai(self, prompt, generated_text):
         """OpenAI APIを使用してテキストを評価する"""
@@ -177,64 +189,41 @@ class GenerationEvaluationTrainer(CPOTrainer):
             return {"error": str(e)}
 
     def extract_metrics_from_evaluation(self, evaluation_result):
-        """OpenAI評価結果からスコアと理由を抽出し、確実に数値型でメトリクスとして記録"""
+        """OpenAI評価結果からスコアを抽出し、確実に数値型で返す"""
         metrics = {}
 
         # エラーチェック
         if "error" in evaluation_result:
-            print(f"評価の中にエラーがありました: {evaluation_result['error']}")
             return {"evaluation_error": 1.0}
 
         try:
             score_keys = ["relevance", "diversity", "appeals", "readability", "overall"]
-            score_sum = 0.0  # 確実に float 型で初期化
+            score_sum = 0.0
             count = 0
 
             for key in score_keys:
                 if key in evaluation_result and isinstance(
                     evaluation_result[key], dict
                 ):
-                    # score 値を取得
-                    score = evaluation_result[key].get("score", None)
-                    reason = evaluation_result[key].get("reason", "")
-                    print(f"🔍 キー: {key}")
-                    print(f"  - スコア: {score}")
-                    print(f"  - 理由: {reason}")
-
-                    # スコアを確実に数値型に変換
-                    if score is not None:
-                        try:
-                            # int, float, str など様々な型に対応
-                            float_score = float(score)
-                            # 必ず float 型として格納
-                            metrics[f"eval_{key}"] = float_score
-                            metrics[f"eval_{key}_reason"] = reason
-                            score_sum += float_score
-                            count += 1
-                        except (ValueError, TypeError):
-                            print(f"⚠️ スコアの数値変換に失敗: {key} → {score}")
-                    else:
-                        print(
-                            f"⚠️ スコアが不正または欠落: {key} → {evaluation_result[key]}"
+                    # スコア取得と数値変換を一度に
+                    try:
+                        score = float(evaluation_result[key].get("score", 0))
+                        metrics[f"eval_{key}"] = score
+                        metrics[f"eval_{key}_reason"] = evaluation_result[key].get(
+                            "reason", ""
                         )
-                else:
-                    print(f"⚠️ キーが存在しないか形式が不正: {key}")
+                        score_sum += score
+                        count += 1
+                    except (ValueError, TypeError):
+                        pass  # 変換エラーは無視
 
-            # 平均スコアを計算
+            # 平均スコア計算
             if count > 0:
-                metrics["eval_average_score"] = float(score_sum / count)
-                print(f"✅ 平均スコア: {metrics['eval_average_score']}")
-
-            # 数値型確認のための追加ログ
-            for k, v in metrics.items():
-                if k.startswith("eval_") and not k.endswith("_reason"):
-                    print(f"🔢 確認: {k} は {type(v).__name__} 型で値は {v}")
+                metrics["eval_average_score"] = score_sum / count
 
             return metrics
 
         except Exception as e:
-            print(f"Error extracting metrics: {str(e)}")
-            # エラー時は必要最小限の情報のみ
             return {"evaluation_parsing_error": 1.0}
 
     def compute_evaluation_loss(self):
@@ -410,18 +399,35 @@ class GenerationEvaluationTrainer(CPOTrainer):
 
         # 評価メトリクスを追加（同期処理を適用）
         print(f"評価メトリクスの内容: {evaluation_metrics}")  # デバッグ用
-        for key, value in evaluation_metrics.items():
-            if not key.endswith("_reason"):  # 理由フィールドは除外
-                # スカラー値をテンソルに変換してから同期処理
-                if isinstance(value, (int, float)):
+        if evaluation_metrics:
+            # 新しい名前の規則を適用するためのプレフィックス
+            prefix = "eval_" if train_eval == "eval" else ""
+
+            # キーマッピングの定義
+            key_mapping = {
+                "eval_relevance": f"{prefix}openai/relevance",
+                "eval_diversity": f"{prefix}openai/diversity",
+                "eval_appeals": f"{prefix}openai/appeals",
+                "eval_readability": f"{prefix}openai/readability",
+                "eval_overall": f"{prefix}openai/overall",
+                "eval_average_score": f"{prefix}openai/average_score",
+            }
+
+            # 評価メトリクスの処理（理由フィールド以外）
+            for key, value in evaluation_metrics.items():
+                if not key.endswith("_reason") and isinstance(value, (int, float)):
+                    # 新しいキー名に変換
+                    new_key = key_mapping.get(key, key)
+
+                    # テンソル化して同期処理
                     tensor_value = torch.tensor(value, device=self.model.device)
-                    # acceleratorを使って同期
-                    metrics[key] = (
+                    metrics[new_key] = (
                         self.accelerator.gather_for_metrics(tensor_value).mean().item()
                     )
-            else:
-                # 理由フィールドはそのまま（ただしログには含まれない可能性あり）
-                metrics[key] = value
+
+            # 評価ベースの損失も新しい命名規則で追加
+            if train_eval == "train" and "evaluation_based_loss" in metrics:
+                metrics[f"{prefix}openai/loss"] = metrics["evaluation_based_loss"]
 
         # ステップカウンタを更新
         if train_eval == "train":
