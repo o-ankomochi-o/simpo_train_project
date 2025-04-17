@@ -83,7 +83,8 @@ class GenerationDiversityCPOConfig(CPOConfig):
 
 
 # 拡張したトレーナークラスをインポート
-from diversity_simpo_trainer import DiversitySimPOTrainer2WithGeneration
+# from diversity_simpo_trainer import DiversitySimPOTrainer2WithGeneration
+from generation_evaluation_trainer import GenerationEvaluationTrainer
 
 # OpenAI API有効性確認
 if "OPENAI_API_KEY" not in os.environ:
@@ -142,7 +143,7 @@ from datetime import datetime
 
 # タイムスタンプ付きの run_name を作成
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-run_name = f"DiversitySimPO_WithOpenAIEval_{timestamp}"
+run_name = f"GenerationEvaluation_{timestamp}"
 
 wandb.init(project="elyza-llama-simpo", name=run_name)
 wandb.config.update(config)
@@ -191,7 +192,7 @@ formatted_test_dataset = formatted_test_dataset.remove_columns(columns_to_remove
 
 # Setup training arguments - 拡張した設定クラスを使用
 training_args = GenerationDiversityCPOConfig(
-    output_dir="./output/diversity-simpo-with-openai-eval",
+    output_dir="./output/generation-evaluation-trainer",
     loss_type="simpo",
     cpo_alpha=0.0,  # 純粋なSimPO
     simpo_gamma=config["training"]["simpo_gamma"],
@@ -221,7 +222,7 @@ training_args = GenerationDiversityCPOConfig(
 
 # Create trainer - DiversitySimPOTrainer2WithGenerationを使用
 print("Setting up trainer with generation and OpenAI evaluation capability...")
-trainer = DiversitySimPOTrainer2WithGeneration(
+trainer = GenerationEvaluationTrainer(
     model=model,
     args=training_args,
     train_dataset=formatted_train_dataset,
@@ -235,8 +236,8 @@ trainer.train()
 
 # Save model
 print("Saving model...")
-trainer.save_model("./output/diversity-simpo-with-openai-eval")
-tokenizer.save_pretrained("./output/diversity-simpo-with-openai-eval")
+trainer.save_model("./output/generation-evaluation-trainer")
+tokenizer.save_pretrained("./output/generation-evaluation-trainer")
 
 # 生成機能をテスト
 print("\n===== トレーニング完了後の生成サンプル と OpenAI評価 =====")
