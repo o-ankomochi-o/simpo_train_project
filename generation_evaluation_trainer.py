@@ -256,7 +256,7 @@ class GenerationEvaluationTrainer(CPOTrainer):
                 outputs = model.generate(
                     input_ids=mini_batch["prompt_input_ids"],
                     attention_mask=mini_batch["prompt_attention_mask"],
-                    max_new_tokens=128,
+                    max_new_tokens=256,
                     do_sample=True,
                     temperature=0.8,
                     num_beams=1,
