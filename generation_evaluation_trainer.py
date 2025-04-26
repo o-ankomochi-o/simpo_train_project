@@ -75,30 +75,6 @@ class GenerationEvaluationTrainer(CPOTrainer):
         print(f"  - eval_loss_weight: {self.eval_loss_weight}")
         print(f"  - generation_interval: {self.generation_interval}")
 
-    # def log(self, logs, start_time=None):
-    #     """
-    #     拡張ログ機能 - super().log() を呼ばずに独自管理
-    #     """
-    #     print(f"📝 ログ記録発生！現在の global_step: {self.state.global_step}")
-    #     print(f"logsに含まれるキー: {list(logs.keys())}")
-    #     print(f"評価関連のキー: {[k for k in logs.keys() if k.startswith('eval_')]}")
-
-    #     # 数値ログだけフィルタ
-    #     numeric_logs = {k: v for k, v in logs.items() if isinstance(v, (int, float))}
-
-    #     # ローカルログ出力
-    #     print(f"📊【ステップ {self.state.global_step}】WandBに送信するメトリクス一覧:")
-
-    #     print("評価関連メトリクス検索中:")
-    #     for k, v in numeric_logs.items():
-    #         if k.startswith("eval_"):
-    #             print(f"　🔹 評価メトリクス: {k}: {v}")
-    #         else:
-    #             print(f"　🔸 {k}: {v}")
-
-    #     # wandb ログ
-    #     if self.args.report_to == "wandb":
-    #         wandb.log(numeric_logs, step=self.state.global_step)
     def log(self, logs, start_time=None):
         """
         拡張ログ機能 - wandbサポート付き+ 文字列系メトリクスを除外
@@ -252,16 +228,19 @@ class GenerationEvaluationTrainer(CPOTrainer):
         """バッチからサンプルを生成し、評価する関数"""
         # 小さいバッチを使用して効率化
         mini_batch = {
-            "prompt_input_ids": batch["prompt_input_ids"][: self.generation_batch_size],
-            "prompt_attention_mask": batch["prompt_attention_mask"][
-                : self.generation_batch_size
-            ],
+            # "prompt_input_ids": batch["prompt_input_ids"][: self.generation_batch_size],
+            "prompt_input_ids": batch["prompt_input_ids"],
+            # "prompt_attention_mask": batch["prompt_attention_mask"][
+            #     : self.generation_batch_size
+            # ],
+            "prompt_attention_mask": batch["prompt_attention_mask"],
         }
 
         # プロンプトのテキスト（あれば）を取得
         prompt_texts = []
         if "prompt" in batch:
-            prompt_texts = batch["prompt"][: self.generation_batch_size]
+            # prompt_texts = batch["prompt"][: self.generation_batch_size]
+            prompt_texts = batch["prompt"]
 
         # 生成前に勾配チェックポイントを一時的に無効化
         was_gradient_checkpointing_enabled = False
