@@ -6,7 +6,7 @@ model:
 
 dataset:
   name: "HuggingFaceH4/ultrafeedback_binarized" # データセット名は適宜変更
-  filtered_train_file: "filtered_train_prefs.jsonl" # フィルタ済み train JSONL ファイルのパス
+  filtered_train_file: "./select_data/filtered_train_prefs.jsonl" # フィルタ済み train JSONL ファイルのパス
 
 training:
   loss_type: "simpo"
