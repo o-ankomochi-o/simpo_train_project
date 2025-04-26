@@ -124,8 +124,19 @@ os.makedirs("output", exist_ok=True)
 
 # Load dataset
 print("Loading dataset...")
+# dataset = load_dataset(config["dataset"]["name"])
+# train_dataset = dataset["train_prefs"]
+# test_dataset = dataset["test_prefs"]
+
+# 学習用にフィルタした JSONL を読み込む
+train_dataset = load_dataset(
+    "json",
+    data_files={"train": config["dataset"]["filtered_train_file"]},
+    split="train",
+)
+
+print("Loading original test_prefs split…")
 dataset = load_dataset(config["dataset"]["name"])
-train_dataset = dataset["train_prefs"]
 test_dataset = dataset["test_prefs"]
 
 # Print a sample
