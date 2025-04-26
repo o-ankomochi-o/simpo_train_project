@@ -6,8 +6,8 @@ import pandas as pd
 from datasets import load_dataset
 
 # パラメータ
-STABLE_CSV = "stable_plain_prompts.csv"
-OUTPUT_JSONL = "filtered_train_prefs.jsonl"
+STABLE_CSV = "./select_data/stable_high_variance_prompts.csv"
+OUTPUT_JSONL = "./select_data/filtered_train_prefs.jsonl"
 
 
 def main():
