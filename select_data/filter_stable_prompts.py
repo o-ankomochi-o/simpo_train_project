@@ -5,7 +5,7 @@ from datasets import load_dataset
 # パラメータ
 VARIANCE_THRESHOLD = 2.0  # 分散の閾値を 2.0 に設定
 TARGET_DIM = "helpfulness"
-STABLE_CSV = "stable_high_variance_prompts.csv"
+STABLE_CSV = "./select_data/stable_high_variance_prompts.csv"
 
 # ① プレーン版読み込み
 print("Loading UltraFeedback plain dataset…")
