@@ -2,7 +2,7 @@
 
 # Model configuration
 model:
-  name: "elyza/Llama-3-ELYZA-JP-8B" # モデル名を指定
+  name: "meta-llama/Meta-Llama-3-8B" # モデル名を指定
 
 # Dataset configuration
 dataset:

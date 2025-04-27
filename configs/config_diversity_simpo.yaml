@@ -2,7 +2,7 @@
 # 多様性促進SimPOトレーニング用設定
 
 model:
-  name: "elyza/Llama-3-ELYZA-JP-8B" # モデル名は適宜変更
+  name: "meta-llama/Meta-Llama-3-8B" # モデル名は適宜変更
 
 dataset:
   name: "HuggingFaceH4/ultrafeedback_binarized" # データセット名は適宜変更
