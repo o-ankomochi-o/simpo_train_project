@@ -191,7 +191,7 @@ def preprocess_function(example):
 print("Preprocessing dataset...")
 formatted_train_dataset = train_dataset.map(preprocess_function, batched=False)
 formatted_test_dataset = test_dataset.map(preprocess_function, batched=False)
-formatted_train_dataset = formatted_train_dataset.select(range(400))
+formatted_train_dataset = formatted_train_dataset.select(range(200))
 formatted_test_dataset = formatted_test_dataset.select(range(100))
 
 # Remove unnecessary columns
