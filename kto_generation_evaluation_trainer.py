@@ -16,7 +16,7 @@ from openai import OpenAI
 from trl import KTOTrainer
 
 
-class GenerationEvaluationTrainer(CPOTrainer):
+class GenerationEvaluationTrainer(KTOTrainer):
     """
     OpenAI評価付きKTOトレーナー
 
