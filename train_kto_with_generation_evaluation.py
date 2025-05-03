@@ -24,61 +24,49 @@ import wandb
 import yaml
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from trl import CPOConfig
+from trl import KTOConfig
 
 
 # 多様性パラメータと生成パラメータを持つCPOConfig拡張
 @dataclass
-class GenerationDiversityCPOConfig(CPOConfig):
+class KTOGenerationEvaluationConfig(KTOConfig):
     """
-    多様性指標と生成機能、OpenAI評価を追加したCPOConfig拡張
+    KTOにOpenAI評価・生成・多様性パラメータを追加した拡張設定
     """
 
-    # 多様性重み - 多様性損失の全体的な重み付け
     diversity_weight: Optional[float] = field(
         default=0.05,
-        metadata={"help": "多様性損失の全体的な重み付け。0.01〜0.1の範囲が推奨。"},
+        metadata={"help": "多様性損失の全体的な重み付け（0.01〜0.1）"},
     )
 
-    # 多様性アルファ - エントロピー項とKL項のバランス
     diversity_alpha: Optional[float] = field(
         default=0.1,
-        metadata={
-            "help": "多様性損失内のエントロピー項の重み。0〜1の範囲。"
-            "1に近いほどエントロピーが強調され、0に近いほどKL項が強調される。"
-        },
+        metadata={"help": "多様性損失内のエントロピー項の重み（0〜1）"},
     )
 
-    # 生成機能のオン・オフ
     enable_generation: Optional[bool] = field(
         default=True,
-        metadata={"help": "トレーニング中の文章生成機能を有効にするかどうか"},
+        metadata={"help": "文章生成機能のオン/オフ"},
     )
 
-    # 生成間隔 - 何ステップごとに生成を行うか
     generation_interval: Optional[int] = field(
         default=100,
-        metadata={"help": "トレーニング中に何ステップごとに文章生成を行うか"},
+        metadata={"help": "何ステップごとに生成するか"},
     )
 
-    # 生成に使用するバッチサイズ
     generation_batch_size: Optional[int] = field(
         default=2,
-        metadata={
-            "help": "文章生成時に使用するバッチサイズ（小さいほど計算効率が良い）"
-        },
+        metadata={"help": "生成時のバッチサイズ"},
     )
 
-    # OpenAI評価機能のオン・オフ
     openai_evaluation: Optional[bool] = field(
         default=True,
-        metadata={"help": "OpenAI APIを使用して生成テキストを評価するかどうか"},
+        metadata={"help": "OpenAI APIによる生成評価のオン/オフ"},
     )
 
-    # 使用するOpenAIモデル
     openai_model: Optional[str] = field(
-        default="gpt-3.5-turbo",
-        metadata={"help": "評価に使用するOpenAIモデル名"},
+        default="gpt-4o-2024-08-06",
+        metadata={"help": "OpenAI評価モデル名"},
     )
 
 
@@ -201,26 +189,23 @@ formatted_train_dataset = formatted_train_dataset.remove_columns(columns_to_remo
 formatted_test_dataset = formatted_test_dataset.remove_columns(columns_to_remove)
 
 # Setup training arguments - 拡張した設定クラスを使用
-training_args = GenerationDiversityCPOConfig(
-    output_dir="./output/generation-evaluation-trainer",
-    loss_type="simpo",
-    cpo_alpha=0.0,  # 純粋なSimPO
-    simpo_gamma=config["training"]["simpo_gamma"],
-    # 多様性パラメータを追加
+training_args = KTOGenerationEvaluationConfig(
+    output_dir="./output/kto-generation-eval",
+    loss_type="kto",
+    cpo_alpha=config["training"]["cpo_alpha"],  # ← KTO用パラメータ
+    # 多様性 + 生成 + OpenAI評価
     diversity_weight=config["training"]["diversity_weight"],
     diversity_alpha=config["training"]["diversity_alpha"],
-    # 生成パラメータを追加
     enable_generation=True,
-    generation_interval=1,  # 25ステップごとに生成（より頻繁にサンプルを確認）
-    generation_batch_size=1,  # バッチサイズを1に縮小（計算効率のため）
-    # OpenAI評価パラメータ
+    generation_interval=1,
+    generation_batch_size=1,
     openai_evaluation=True,
     openai_model="gpt-4o-2024-08-06",
-    # 一般的なトレーニングパラメータ
+    # 一般トレーニング設定
     per_device_train_batch_size=config["training"]["per_device_train_batch_size"],
     num_train_epochs=config["training"]["num_train_epochs"],
     logging_steps=config["training"]["logging_steps"],
-    deepspeed="configs/ds_config_simpo.json",
+    deepspeed="configs/ds_config_kto.json",
     gradient_checkpointing=config["training"]["gradient_checkpointing"],
     save_strategy=config["training"]["save_strategy"],
     save_steps=config["training"]["save_steps"],
