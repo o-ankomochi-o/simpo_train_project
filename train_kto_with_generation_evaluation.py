@@ -191,9 +191,12 @@ formatted_test_dataset = formatted_test_dataset.remove_columns(columns_to_remove
 # Setup training arguments - 拡張した設定クラスを使用
 training_args = KTOGenerationEvaluationConfig(
     output_dir="./output/kto-generation-eval",
-    loss_type="kto",
-    cpo_alpha=config["training"]["cpo_alpha"],  # ← KTO用パラメータ
-    # 多様性 + 生成 + OpenAI評価
+    loss_type="kto",  # 明示的にkto指定（もしくはデフォルトのままでもOK）
+    # KTOの追加パラメータ（必要に応じて）
+    beta=config["training"].get("beta", 0.1),
+    desirable_weight=config["training"].get("desirable_weight", 1.0),
+    undesirable_weight=config["training"].get("undesirable_weight", 0.1),
+    # 多様性や生成、OpenAI評価用パラメータ
     diversity_weight=config["training"]["diversity_weight"],
     diversity_alpha=config["training"]["diversity_alpha"],
     enable_generation=True,
@@ -201,11 +204,11 @@ training_args = KTOGenerationEvaluationConfig(
     generation_batch_size=1,
     openai_evaluation=True,
     openai_model="gpt-4o-2024-08-06",
-    # 一般トレーニング設定
+    # 共通パラメータ
     per_device_train_batch_size=config["training"]["per_device_train_batch_size"],
     num_train_epochs=config["training"]["num_train_epochs"],
     logging_steps=config["training"]["logging_steps"],
-    deepspeed="configs/ds_config_kto.json",
+    deepspeed="configs/ds_config_simpo.json",
     gradient_checkpointing=config["training"]["gradient_checkpointing"],
     save_strategy=config["training"]["save_strategy"],
     save_steps=config["training"]["save_steps"],
