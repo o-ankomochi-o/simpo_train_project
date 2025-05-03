@@ -192,7 +192,7 @@ formatted_test_dataset = formatted_test_dataset.remove_columns(columns_to_remove
 training_args = KTOGenerationEvaluationConfig(
     output_dir="./output/kto-generation-eval",
     loss_type="kto",  # 明示的にkto指定（もしくはデフォルトのままでもOK）
-    # KTOの追加パラメータ（必要に応じて）
+    # KTOの追加パラメータ
     beta=config["training"].get("beta", 0.1),
     desirable_weight=config["training"].get("desirable_weight", 1.0),
     undesirable_weight=config["training"].get("undesirable_weight", 0.1),
