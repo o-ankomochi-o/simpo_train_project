@@ -90,20 +90,23 @@ class KTOGenerationEvaluationTrainer(KTOTrainer):
         try:
             # 評価指示
             evaluation_prompt = f"""
-            評価してください:
+            以下のプロンプトと生成されたキャッチフレーズを読み取り、**キャッチフレーズに含まれる訴求の数**を評価してください。  
+            訴求とは、見る人の心を動かすような言葉（例: 割引・安心・人気・限定・簡単・公式・豊富 など）を指します。
 
-            プロンプト:
+            ---
+
+            ### プロンプト:
             {prompt}
 
-            生成されたキャッチフレーズ:
+            ### 生成されたキャッチフレーズ:
             {generated_text}
 
-            生成されたキャッチフレーズに含まれる訴求の数を返してください。
+            ---
 
-            結果は以下のJSON形式で返してください:
+            ### 出力形式（JSONのみで出力してください）:
             ```json
             {{
-            "appeals": {{"score": 数値, "reason": "理由"}},
+            "number_of_appeals": {{"score": 数値（0以上の整数）, "reason": "その数にした理由（例: 価格訴求と信頼性のワードが含まれていたため）"}},
             }}
             """
 
@@ -158,7 +161,7 @@ class KTOGenerationEvaluationTrainer(KTOTrainer):
             return {"evaluation_error": 1.0}
 
         try:
-            score_keys = ["relevance", "diversity", "appeals", "readability", "overall"]
+            score_keys = ["number_of_appeals"]
             score_sum = 0.0
             count = 0
 
@@ -200,7 +203,7 @@ class KTOGenerationEvaluationTrainer(KTOTrainer):
         # スコアが高いほど損失が低くなるように負の符号をつける
         # スコアは自然数なので、適切にスケーリングする
         # eval_score = self.latest_eval_scores.get("eval_average_score", 0)
-        eval_score = float(self.latest_eval_scores.get("appeals", 0))
+        eval_score = float(self.latest_eval_scores.get("number_of_appeals", 0))
 
         # スコアが高いほど損失が小さくなるように変換
         # 5点満点なら、5-score で0に近づくほど良いことになる
@@ -376,7 +379,7 @@ class KTOGenerationEvaluationTrainer(KTOTrainer):
             key_mapping = {
                 # "eval_relevance": f"{prefix}openai/relevance",
                 # "eval_diversity": f"{prefix}openai/diversity",
-                "eval_appeals": f"{prefix}openai/appeals",
+                "eval_number_of_appeals": f"{prefix}openai/number_of_appeals",
                 # "eval_readability": f"{prefix}openai/readability",
                 # "eval_overall": f"{prefix}openai/overall",
                 # "eval_average_score": f"{prefix}openai/average_score",
