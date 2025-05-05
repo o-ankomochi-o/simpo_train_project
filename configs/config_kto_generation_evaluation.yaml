@@ -4,8 +4,7 @@ model:
   name: "meta-llama/Meta-Llama-3-8B" # 使用するモデル名
 
 dataset:
-  name: "HuggingFaceH4/ultrafeedback_binarized"
-  filtered_train_file: "./select_data/filtered_train_prefs.jsonl"
+  dataset_file: "./data/kto_feedback.json"
 
 training:
   loss_type: "kto"

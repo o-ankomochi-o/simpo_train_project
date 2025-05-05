@@ -163,7 +163,7 @@ print("Loading dataset...")
 # test_dataset = dataset["test_prefs"]
 
 # データセットの読み込み
-with open(config.data_path, "r", encoding="utf-8") as f:
+with open(config["dataset"]["dataset_file"], "r", encoding="utf-8") as f:
     data = json.load(f)
 dataset = Dataset.from_dict(data)
 train_dataset = dataset
