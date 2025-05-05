@@ -136,6 +136,12 @@ tokenizer = AutoTokenizer.from_pretrained(config["model"]["name"])
 model = AutoModelForCausalLM.from_pretrained(config["model"]["name"])
 tokenizer.pad_token = tokenizer.eos_token
 
+
+# リファレンスモデルのセットアップ
+model_ref = AutoModelForCausalLM.from_pretrained(config["model"]["name"])
+model_ref.config.pad_token_id = tokenizer.pad_token_id
+model_ref.config.use_cache = False
+
 # Initialize wandb
 from datetime import datetime
 
@@ -222,6 +228,7 @@ training_args = KTOGenerationEvaluationConfig(
 print("Setting up trainer with generation and OpenAI evaluation capability...")
 trainer = KTOGenerationEvaluationTrainer(
     model=model,
+    ref_model=ref_model,
     args=training_args,
     train_dataset=formatted_train_dataset,
     eval_dataset=formatted_test_dataset,
