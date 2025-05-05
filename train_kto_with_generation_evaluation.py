@@ -234,6 +234,7 @@ training_args = KTOGenerationEvaluationConfig(
     eval_steps=config["training"]["eval_steps"],
     learning_rate=float(config["training"]["learning_rate"]),
     report_to=config["training"]["report_to"],
+    gradient_accumulation_steps=4,
 )
 
 # Create trainer - DiversitySimPOTrainer2WithGenerationを使用
