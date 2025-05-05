@@ -353,8 +353,9 @@ class KTOGenerationEvaluationTrainer(KTOTrainer):
             generated_texts, evaluation_metrics = self.generate_samples(model, batch)
             print(f"生成されたサンプル数: {len(generated_texts)}")
 
-        # 親クラス(CPOTrainer)の方法を呼び出す
-        loss, metrics = super().get_batch_loss_metrics(model, batch, train_eval)
+        # 親クラス(KTOTrainer)の方法を呼び出す
+        # loss, metrics = super().get_batch_loss_metrics(model, batch, train_eval)
+        loss, metrics = super().get_batch_loss_metrics(model, batch)
 
         if train_eval == "train":
             # 評価スコアベースの損失を計算
