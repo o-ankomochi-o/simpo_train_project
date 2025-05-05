@@ -152,9 +152,15 @@ gradient_checkpointing_kwargs = {"use_reentrant": False}
 
 # Load model and tokenizer
 print(f"Loading model: {config['model']['name']}...")
-tokenizer = AutoTokenizer.from_pretrained(config["model"]["name"])
-model = AutoModelForCausalLM.from_pretrained(config["model"]["name"])
+tokenizer = AutoTokenizer.from_pretrained(
+    config["model"]["name"], use_fast=False, trust_remote_code=True
+)
+model = AutoModelForCausalLM.from_pretrained(
+    config["model"]["name"],
+    trust_remote_code=True,
+)
 tokenizer.pad_token = tokenizer.eos_token
+tokenizer.padding_side = "right"
 model.gradient_checkpointing_enable()  # 勾配チェックポイントを有効化
 model.config.use_cache = False  # キャッシュを無効化（メモリ使用量削減）
 
