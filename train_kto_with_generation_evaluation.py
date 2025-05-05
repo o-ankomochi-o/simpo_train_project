@@ -108,27 +108,6 @@ class CustomKTOGenerationEvaluationTrainer(KTOGenerationEvaluationTrainer):
         if self.args.report_to == "wandb" and global_rank == 0:
             wandb.log(logs)
 
-    def _wrap_model(self, model, training=True, dataloader=None):
-        # 親クラスの_wrap_modelを呼び出す
-        model = super()._wrap_model(model, training, dataloader)
-
-        # DeepSpeedモデルの場合のno_sync回避策
-        if self.is_deepspeed_enabled and hasattr(model, "no_sync"):
-            # ダミーのno_syncを設定
-            def dummy_no_sync():
-                class DummyContextManager:
-                    def __enter__(self):
-                        return None
-
-                    def __exit__(self, *args, **kwargs):
-                        pass
-
-                return DummyContextManager()
-
-            model.no_sync = dummy_no_sync
-
-        return model
-
 
 # 明示的な分散環境の初期化
 deepspeed.init_distributed()
@@ -306,8 +285,8 @@ training_args = KTOGenerationEvaluationConfig(
 
 # Create trainer - DiversitySimPOTrainer2WithGenerationを使用
 print("Setting up trainer with generation and OpenAI evaluation capability...")
-# trainer = KTOGenerationEvaluationTrainer(
-trainer = CustomKTOGenerationEvaluationTrainer(
+trainer = KTOGenerationEvaluationTrainer(
+    # trainer = CustomKTOGenerationEvaluationTrainer(
     model=model,
     ref_model=ref_model,
     args=training_args,
