@@ -90,6 +90,25 @@ for i in range(torch.cuda.device_count()):
     print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
 
 
+class CustomKTOGenerationEvaluationTrainer(KTOGenerationEvaluationTrainer):
+    """DeepSpeedとログ機能を統合したカスタムKTOトレーナー"""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.use_deepspeed = True
+
+    def compute_loss(self, model, inputs, return_outputs=False):
+        return super().compute_loss(model, inputs, return_outputs=return_outputs)
+
+    def log(self, logs, start_time=None):
+        # 親クラスのlogメソッドをインスタンスメソッドとして呼び出し
+        super().log(logs)
+
+        # 親クラスの処理後にwandbにログを記録
+        if self.args.report_to == "wandb" and global_rank == 0:
+            wandb.log(logs)
+
+
 # 明示的な分散環境の初期化
 deepspeed.init_distributed()
 
@@ -147,8 +166,8 @@ test_dataset = dataset["test_prefs"]
 print("Sample data:")
 print(train_dataset[0])
 
-# 勾配チェックポイントの設定に関する変更
-gradient_checkpointing_kwargs = {"use_reentrant": False}
+# # 勾配チェックポイントの設定に関する変更
+# gradient_checkpointing_kwargs = {"use_reentrant": False}
 
 # Load model and tokenizer
 print(f"Loading model: {config['model']['name']}...")
@@ -266,7 +285,8 @@ training_args = KTOGenerationEvaluationConfig(
 
 # Create trainer - DiversitySimPOTrainer2WithGenerationを使用
 print("Setting up trainer with generation and OpenAI evaluation capability...")
-trainer = KTOGenerationEvaluationTrainer(
+# trainer = KTOGenerationEvaluationTrainer(
+trainer = CustomKTOGenerationEvaluationTrainer(
     model=model,
     ref_model=ref_model,
     args=training_args,
