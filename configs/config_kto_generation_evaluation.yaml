@@ -31,7 +31,7 @@ training:
 
   # ロギング・保存
   logging_steps: 1
-  evaluation_strategy: "steps"
+  evaluation_strategy: "no"
   eval_steps: 100
   save_strategy: "no"
   save_steps: 100
