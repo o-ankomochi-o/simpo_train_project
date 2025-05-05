@@ -109,15 +109,12 @@ class CustomKTOGenerationEvaluationTrainer(KTOGenerationEvaluationTrainer):
             wandb.log(logs)
 
     def _wrap_model(self, model, training=True, dataloader=None):
-        """ZeRO-3との互換性のために_wrap_modelをオーバーライド"""
-        # 親クラスの_wrap_modelを呼び出してモデルをラップ
+        # 親クラスの_wrap_modelを呼び出す
         model = super()._wrap_model(model, training, dataloader)
 
         # DeepSpeedモデルの場合のno_sync回避策
         if self.is_deepspeed_enabled and hasattr(model, "no_sync"):
-            original_no_sync = model.no_sync
-
-            # ダミーのno_syncコンテキストマネージャを作成
+            # ダミーのno_syncを設定
             def dummy_no_sync():
                 class DummyContextManager:
                     def __enter__(self):
@@ -128,11 +125,9 @@ class CustomKTOGenerationEvaluationTrainer(KTOGenerationEvaluationTrainer):
 
                 return DummyContextManager()
 
-            # 本来のno_syncの代わりにダミーを設定
             model.no_sync = dummy_no_sync
-            print(
-                "DeepSpeed ZeRO-3互換モードを有効化: no_syncコンテキストマネージャを置換しました"
-            )
+
+        return model
 
 
 # 明示的な分散環境の初期化
