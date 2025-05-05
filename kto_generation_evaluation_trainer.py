@@ -5,6 +5,7 @@ OpenAI評価に基づく損失を組み込んだテキスト生成トレーナ�
 """
 
 import json
+import math
 import os
 import time
 from typing import Dict, List, Literal, Union
@@ -94,24 +95,15 @@ class KTOGenerationEvaluationTrainer(KTOTrainer):
             プロンプト:
             {prompt}
 
-            生成されたテキスト:
+            生成されたキャッチフレーズ:
             {generated_text}
 
-            以下の項目について0〜5の数値で評価し、それぞれの理由も説明してください：
-            1. 関連性: プロンプトの内容に関連しているか
-            2. 多様性: 表現や語彙の多様性があるか
-            3. 訴求点: 異なる観点や主張を含んでいるか
-            4. 読みやすさ: 文章構造や流れの自然さ
-            5. 全体評価: 総合的な質
+            生成されたキャッチフレーズに含まれる訴求の数を返してください。
 
             結果は以下のJSON形式で返してください:
             ```json
             {{
-            "relevance": {{"score": 数値, "reason": "理由"}},
-            "diversity": {{"score": 数値, "reason": "理由"}},
             "appeals": {{"score": 数値, "reason": "理由"}},
-            "readability": {{"score": 数値, "reason": "理由"}},
-            "overall": {{"score": 数値, "reason": "理由"}}
             }}
             """
 
@@ -186,9 +178,9 @@ class KTOGenerationEvaluationTrainer(KTOTrainer):
                     except (ValueError, TypeError):
                         pass  # 変換エラーは無視
 
-            # 平均スコア計算
-            if count > 0:
-                metrics["eval_average_score"] = score_sum / count
+            # # 平均スコア計算
+            # if count > 0:
+            #     metrics["eval_average_score"] = score_sum / count
 
             return metrics
 
@@ -200,18 +192,22 @@ class KTOGenerationEvaluationTrainer(KTOTrainer):
         # 評価スコアがない場合はゼロ損失を返す
         if (
             not self.latest_eval_scores
-            or "eval_average_score" not in self.latest_eval_scores
+            # or "eval_average_score" not in self.latest_eval_scores
         ):
             return torch.tensor(0.0, device=self.model.device)
 
         # 評価スコアから損失を計算
         # スコアが高いほど損失が低くなるように負の符号をつける
-        # スコアは通常0-5なので、適切にスケーリングする
-        eval_score = self.latest_eval_scores.get("eval_average_score", 0)
+        # スコアは自然数なので、適切にスケーリングする
+        # eval_score = self.latest_eval_scores.get("eval_average_score", 0)
+        eval_score = float(self.latest_eval_scores.get("appeals", 0))
 
         # スコアが高いほど損失が小さくなるように変換
         # 5点満点なら、5-score で0に近づくほど良いことになる
-        eval_loss = (5.0 - eval_score) / 5.0
+        # eval_loss = (5.0 - eval_score) / 5.0
+        eval_loss = 1.0 / (
+            1.0 + math.log1p(eval_score)
+        )  # log(1 + x) を使って0スコア対応
 
         scaled_loss = eval_loss
 
@@ -378,12 +374,12 @@ class KTOGenerationEvaluationTrainer(KTOTrainer):
 
             # キーマッピングの定義
             key_mapping = {
-                "eval_relevance": f"{prefix}openai/relevance",
-                "eval_diversity": f"{prefix}openai/diversity",
+                # "eval_relevance": f"{prefix}openai/relevance",
+                # "eval_diversity": f"{prefix}openai/diversity",
                 "eval_appeals": f"{prefix}openai/appeals",
-                "eval_readability": f"{prefix}openai/readability",
-                "eval_overall": f"{prefix}openai/overall",
-                "eval_average_score": f"{prefix}openai/average_score",
+                # "eval_readability": f"{prefix}openai/readability",
+                # "eval_overall": f"{prefix}openai/overall",
+                # "eval_average_score": f"{prefix}openai/average_score",
             }
 
             # 評価メトリクスの処理（理由フィールド以外）
