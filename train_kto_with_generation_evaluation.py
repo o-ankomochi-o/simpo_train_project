@@ -24,6 +24,7 @@ import wandb
 import yaml
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
+from transformers.integrations import HfDeepSpeedConfig
 from trl import KTOConfig
 
 
@@ -114,6 +115,8 @@ config_path = "configs/config_kto_generation_evaluation.yaml"
 with open(config_path, "r") as f:
     config = yaml.safe_load(f)
 
+dschf = HfDeepSpeedConfig(ds_config)
+
 # Create output directory
 os.makedirs("output", exist_ok=True)
 
@@ -138,6 +141,9 @@ test_dataset = dataset["test_prefs"]
 print("Sample data:")
 print(train_dataset[0])
 
+# 勾配チェックポイントの設定に関する変更
+gradient_checkpointing_kwargs = {"use_reentrant": False}
+
 # Load model and tokenizer
 print(f"Loading model: {config['model']['name']}...")
 tokenizer = AutoTokenizer.from_pretrained(config["model"]["name"])
@@ -145,6 +151,10 @@ model = AutoModelForCausalLM.from_pretrained(config["model"]["name"])
 tokenizer.pad_token = tokenizer.eos_token
 model.gradient_checkpointing_enable()  # 勾配チェックポイントを有効化
 model.config.use_cache = False  # キャッシュを無効化（メモリ使用量削減）
+
+# 明示的にパラメータの勾配を有効化
+for param in model.parameters():
+    param.requires_grad = True
 
 
 # リファレンスモデルのセットアップ
@@ -236,6 +246,10 @@ training_args = KTOGenerationEvaluationConfig(
     report_to=config["training"]["report_to"],
     gradient_accumulation_steps=4,
     bf16=True,
+    ddp_find_unused_parameters=False,  # DDPの未使用パラメータチェックを無効化
+    no_cuda=False,  # CUDAの使用を有効化
+    max_grad_norm=0.3,  # 勾配クリッピングの閾値
+    run_name=run_name,  # wandbのrun_name
 )
 
 # Create trainer - DiversitySimPOTrainer2WithGenerationを使用
