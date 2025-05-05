@@ -214,8 +214,8 @@ training_args = KTOGenerationEvaluationConfig(
     diversity_weight=config["training"]["diversity_weight"],
     diversity_alpha=config["training"]["diversity_alpha"],
     enable_generation=True,
-    generation_interval=2,
-    generation_batch_size=1,
+    generation_interval=1,
+    generation_batch_size=2,
     openai_evaluation=True,
     openai_model="gpt-4o-2024-08-06",
     # 共通パラメータ
