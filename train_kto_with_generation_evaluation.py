@@ -89,8 +89,13 @@ for i in range(torch.cuda.device_count()):
     print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
 
 
-# 明示的な分散環境の初期化
-deepspeed.init_distributed()
+# # 明示的な分散環境の初期化
+# deepspeed.init_distributed()
+
+# # 分散学習の初期化
+# if not dist.is_initialized():
+#     deepspeed.init_distributed()
+# torch.cuda.set_device(config.local_rank)
 
 # LOCAL_RANKとglobal_rankを設定
 local_rank = int(os.environ.get("LOCAL_RANK", 0))
