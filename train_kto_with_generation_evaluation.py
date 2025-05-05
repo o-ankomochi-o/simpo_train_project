@@ -254,7 +254,6 @@ training_args = KTOGenerationEvaluationConfig(
     bf16=True,
     ddp_find_unused_parameters=False,  # DDPの未使用パラメータチェックを無効化
     no_cuda=False,  # CUDAの使用を有効化
-    max_grad_norm=0.3,  # 勾配クリッピングの閾値
     run_name=run_name,  # wandbのrun_name
 )
 
