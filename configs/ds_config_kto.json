@@ -40,14 +40,14 @@
   "scheduler": {
     "type": "WarmupCosineLR",
     "params": {
-      "total_num_steps": 50,
+      "total_num_steps": 25,
       "warmup_num_steps": 0
     }
   },
   "steps_per_print": 10,
   "wall_clock_breakdown": false,
-  "train_micro_batch_size_per_gpu": 2,
+  "train_micro_batch_size_per_gpu": 4,
   "gradient_accumulation_steps": 1,
-  "train_batch_size": 8,
+  "train_batch_size": 16,
   "gradient_clipping": 1.0
 }
