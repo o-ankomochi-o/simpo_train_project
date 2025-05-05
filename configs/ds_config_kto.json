@@ -49,5 +49,5 @@
   "train_micro_batch_size_per_gpu": 2,
   "gradient_accumulation_steps": 4,
   "gradient_clipping": 1.0,
-  "train_batch_size": 8
+  "train_batch_size": 32
 }
