@@ -115,7 +115,13 @@ config_path = "configs/config_kto_generation_evaluation.yaml"
 with open(config_path, "r") as f:
     config = yaml.safe_load(f)
 
+# Load DeepSpeed config
+with open("configs/ds_config_kto.json", "r") as f:
+    ds_config = yaml.safe_load(f)
+
+# Initialize HfDeepSpeedConfig
 dschf = HfDeepSpeedConfig(ds_config)
+
 
 # Create output directory
 os.makedirs("output", exist_ok=True)
