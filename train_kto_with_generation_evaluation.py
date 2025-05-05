@@ -4,8 +4,11 @@
 OpenAI評価機能を持つ文章生成機能を追加した多様性SimPOトレーニングのメインスクリプト
 """
 
+import json
 import os
 import sys
+
+from datasets import Dataset
 
 # Flex-Attention を無効化
 os.environ["TRANSFORMERS_NO_FLEX_ATTENTION"] = "1"
@@ -147,20 +150,24 @@ os.makedirs("output", exist_ok=True)
 
 # Load dataset
 print("Loading dataset...")
+
+# # 学習用にフィルタした JSONL を読み込む
+# train_dataset = load_dataset(
+#     "json",
+#     data_files={"train": config["dataset"]["filtered_train_file"]},
+#     split="train",
+# )
+
+# print("Loading original test_prefs split…")
 # dataset = load_dataset(config["dataset"]["name"])
-# train_dataset = dataset["train_prefs"]
 # test_dataset = dataset["test_prefs"]
 
-# 学習用にフィルタした JSONL を読み込む
-train_dataset = load_dataset(
-    "json",
-    data_files={"train": config["dataset"]["filtered_train_file"]},
-    split="train",
-)
+# データセットの読み込み
+with open(config.data_path, "r", encoding="utf-8") as f:
+    data = json.load(f)
+dataset = Dataset.from_dict(data)
+train_dataset = dataset
 
-print("Loading original test_prefs split…")
-dataset = load_dataset(config["dataset"]["name"])
-test_dataset = dataset["test_prefs"]
 
 # Print a sample
 print("Sample data:")
@@ -207,45 +214,45 @@ wandb.config.update(config)
 wandb.watch(model, log="all", log_freq=10)
 
 
-# Preprocess dataset
-def preprocess_function(example):
-    # Get prompt
-    prompt_text = example["prompt"]
+# # Preprocess dataset
+# def preprocess_function(example):
+#     # Get prompt
+#     prompt_text = example["prompt"]
 
-    # Extract assistant responses
-    chosen_reply = next(
-        (msg["content"] for msg in example["chosen"] if msg["role"] == "assistant"),
-        None,
-    )
-    rejected_reply = next(
-        (msg["content"] for msg in example["rejected"] if msg["role"] == "assistant"),
-        None,
-    )
+#     # Extract assistant responses
+#     chosen_reply = next(
+#         (msg["content"] for msg in example["chosen"] if msg["role"] == "assistant"),
+#         None,
+#     )
+#     rejected_reply = next(
+#         (msg["content"] for msg in example["rejected"] if msg["role"] == "assistant"),
+#         None,
+#     )
 
-    # Skip if assistant responses not found
-    if chosen_reply is None or rejected_reply is None:
-        return {}
+#     # Skip if assistant responses not found
+#     if chosen_reply is None or rejected_reply is None:
+#         return {}
 
-    # Return formatted data
-    return {
-        "prompt": prompt_text,
-        "chosen": chosen_reply,
-        "rejected": rejected_reply,
-    }
+#     # Return formatted data
+#     return {
+#         "prompt": prompt_text,
+#         "chosen": chosen_reply,
+#         "rejected": rejected_reply,
+#     }
 
 
-print("Preprocessing dataset...")
-formatted_train_dataset = train_dataset.map(preprocess_function, batched=False)
-formatted_test_dataset = test_dataset.map(preprocess_function, batched=False)
-formatted_train_dataset = formatted_train_dataset.select(range(200))
-formatted_test_dataset = formatted_test_dataset.select(range(100))
+# print("Preprocessing dataset...")
+# formatted_train_dataset = train_dataset.map(preprocess_function, batched=False)
+# formatted_test_dataset = test_dataset.map(preprocess_function, batched=False)
+# formatted_train_dataset = formatted_train_dataset.select(range(200))
+# formatted_test_dataset = formatted_test_dataset.select(range(100))
 
-# Remove unnecessary columns
-columns_to_remove = list(
-    set(formatted_train_dataset.column_names) - {"prompt", "chosen", "rejected"}
-)
-formatted_train_dataset = formatted_train_dataset.remove_columns(columns_to_remove)
-formatted_test_dataset = formatted_test_dataset.remove_columns(columns_to_remove)
+# # Remove unnecessary columns
+# columns_to_remove = list(
+#     set(formatted_train_dataset.column_names) - {"prompt", "chosen", "rejected"}
+# )
+# formatted_train_dataset = formatted_train_dataset.remove_columns(columns_to_remove)
+# formatted_test_dataset = formatted_test_dataset.remove_columns(columns_to_remove)
 
 # Setup training arguments - 拡張した設定クラスを使用
 training_args = KTOGenerationEvaluationConfig(
@@ -289,8 +296,9 @@ trainer = KTOGenerationEvaluationTrainer(
     model=model,
     ref_model=ref_model,
     args=training_args,
-    train_dataset=formatted_train_dataset,
-    eval_dataset=formatted_test_dataset,
+    # train_dataset=formatted_train_dataset,
+    # eval_dataset=formatted_test_dataset,
+    train_dataset=train_dataset,
     processing_class=tokenizer,
 )
 
