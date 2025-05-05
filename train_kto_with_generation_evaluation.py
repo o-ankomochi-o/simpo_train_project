@@ -138,9 +138,9 @@ tokenizer.pad_token = tokenizer.eos_token
 
 
 # リファレンスモデルのセットアップ
-model_ref = AutoModelForCausalLM.from_pretrained(config["model"]["name"])
-model_ref.config.pad_token_id = tokenizer.pad_token_id
-model_ref.config.use_cache = False
+ref_model = AutoModelForCausalLM.from_pretrained(config["model"]["name"])
+ref_model.config.pad_token_id = tokenizer.pad_token_id
+ref_model.config.use_cache = False
 
 # Initialize wandb
 from datetime import datetime
