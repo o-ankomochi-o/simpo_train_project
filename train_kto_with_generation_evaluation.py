@@ -92,15 +92,18 @@ for i in range(torch.cuda.device_count()):
 # # 明示的な分散環境の初期化
 # deepspeed.init_distributed()
 
-# LOCAL_RANKとglobal_rankを設定
+# LOCAL_RANK取得
 local_rank = int(os.environ.get("LOCAL_RANK", 0))
-global_rank = dist.get_rank()
-world_size = dist.get_world_size()
-
 # 分散学習の初期化
 if not dist.is_initialized():
     deepspeed.init_distributed()
+
+# CUDAデバイス設定
 torch.cuda.set_device(local_rank)
+
+global_rank = dist.get_rank()
+world_size = dist.get_world_size()
+
 
 print(
     f"Process info: local_rank={local_rank}, global_rank={global_rank}, world_size={world_size}"
