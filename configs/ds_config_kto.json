@@ -26,28 +26,28 @@
     "stage3_prefetch_bucket_size": 50000000,
     "stage3_param_persistence_threshold": 100000,
     "stage3_gather_16bit_weights_on_model_save": true,
-    "sub_group_size": 1000000000
+    "sub_group_size": 1e9
   },
   "optimizer": {
     "type": "AdamW",
     "params": {
-      "lr": 5e-6,
+      "lr": 5e-5,
       "betas": [0.9, 0.999],
       "eps": 1e-8,
-      "weight_decay": 0.01
+      "weight_decay": 0.0
     }
   },
   "scheduler": {
     "type": "WarmupCosineLR",
     "params": {
-      "total_num_steps": 1000,
-      "warmup_num_steps": 100
+      "total_num_steps": 50,
+      "warmup_num_steps": 0
     }
   },
   "steps_per_print": 10,
   "wall_clock_breakdown": false,
   "train_micro_batch_size_per_gpu": 2,
   "gradient_accumulation_steps": 4,
-  "gradient_clipping": 1.0,
-  "train_batch_size": 32
+  "train_batch_size": 32,
+  "gradient_clipping": 1.0
 }
