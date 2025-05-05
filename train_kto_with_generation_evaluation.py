@@ -143,11 +143,15 @@ print(f"Loading model: {config['model']['name']}...")
 tokenizer = AutoTokenizer.from_pretrained(config["model"]["name"])
 model = AutoModelForCausalLM.from_pretrained(config["model"]["name"])
 tokenizer.pad_token = tokenizer.eos_token
+model.gradient_checkpointing_enable()  # 勾配チェックポイントを有効化
+model.config.use_cache = False  # キャッシュを無効化（メモリ使用量削減）
 
 
 # リファレンスモデルのセットアップ
 ref_model = AutoModelForCausalLM.from_pretrained(config["model"]["name"])
 ref_model.config.pad_token_id = tokenizer.pad_token_id
+ref_model.config.use_cache = False
+ref_model.gradient_checkpointing_enable()
 ref_model.config.use_cache = False
 
 # Initialize wandb
