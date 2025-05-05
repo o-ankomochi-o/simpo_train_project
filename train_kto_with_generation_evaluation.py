@@ -250,6 +250,7 @@ training_args = KTOGenerationEvaluationConfig(
     logging_steps=config["training"]["logging_steps"],
     deepspeed="configs/ds_config_kto.json",
     gradient_checkpointing=config["training"]["gradient_checkpointing"],
+    gradient_checkpointing_kwargs={"use_reentrant": False},
     save_strategy=config["training"]["save_strategy"],
     save_steps=config["training"]["save_steps"],
     evaluation_strategy=config["training"]["evaluation_strategy"],
