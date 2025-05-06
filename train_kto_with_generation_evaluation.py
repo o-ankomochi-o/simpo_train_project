@@ -209,7 +209,7 @@ from datetime import datetime
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 run_name = f"GenerationEvaluation_{timestamp}"
 
-wandb.init(project="elyza-llama-simpo", name=run_name)
+wandb.init(project="elyza-llama-kto", name=run_name)
 wandb.config.update(config)
 wandb.watch(model, log="all", log_freq=10)
 

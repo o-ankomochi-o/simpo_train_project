@@ -1,7 +1,7 @@
 # KTO + 生成 + OpenAI評価 用設定ファイル
 
 model:
-  name: "meta-llama/Meta-Llama-3-8B" # 使用するモデル名
+  name: "elyza/Llama-3-ELYZA-JP-8B" # 使用するモデル名
 
 dataset:
   dataset_file: "./data/kto_feedback.json"
