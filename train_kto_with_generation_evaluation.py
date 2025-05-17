@@ -151,16 +151,6 @@ os.makedirs("output", exist_ok=True)
 # Load dataset
 print("Loading dataset...")
 
-# # 学習用にフィルタした JSONL を読み込む
-# train_dataset = load_dataset(
-#     "json",
-#     data_files={"train": config["dataset"]["filtered_train_file"]},
-#     split="train",
-# )
-
-# print("Loading original test_prefs split…")
-# dataset = load_dataset(config["dataset"]["name"])
-# test_dataset = dataset["test_prefs"]
 
 # データセットの読み込み
 with open(config["dataset"]["dataset_file"], "r", encoding="utf-8") as f:
@@ -213,46 +203,6 @@ wandb.init(project="elyza-llama-kto", name=run_name)
 wandb.config.update(config)
 wandb.watch(model, log="all", log_freq=10)
 
-
-# # Preprocess dataset
-# def preprocess_function(example):
-#     # Get prompt
-#     prompt_text = example["prompt"]
-
-#     # Extract assistant responses
-#     chosen_reply = next(
-#         (msg["content"] for msg in example["chosen"] if msg["role"] == "assistant"),
-#         None,
-#     )
-#     rejected_reply = next(
-#         (msg["content"] for msg in example["rejected"] if msg["role"] == "assistant"),
-#         None,
-#     )
-
-#     # Skip if assistant responses not found
-#     if chosen_reply is None or rejected_reply is None:
-#         return {}
-
-#     # Return formatted data
-#     return {
-#         "prompt": prompt_text,
-#         "chosen": chosen_reply,
-#         "rejected": rejected_reply,
-#     }
-
-
-# print("Preprocessing dataset...")
-# formatted_train_dataset = train_dataset.map(preprocess_function, batched=False)
-# formatted_test_dataset = test_dataset.map(preprocess_function, batched=False)
-# formatted_train_dataset = formatted_train_dataset.select(range(200))
-# formatted_test_dataset = formatted_test_dataset.select(range(100))
-
-# # Remove unnecessary columns
-# columns_to_remove = list(
-#     set(formatted_train_dataset.column_names) - {"prompt", "chosen", "rejected"}
-# )
-# formatted_train_dataset = formatted_train_dataset.remove_columns(columns_to_remove)
-# formatted_test_dataset = formatted_test_dataset.remove_columns(columns_to_remove)
 
 # Setup training arguments - 拡張した設定クラスを使用
 training_args = KTOGenerationEvaluationConfig(
@@ -310,32 +260,5 @@ trainer.train()
 print("Saving model...")
 trainer.save_model("./output/generation-evaluation-trainer")
 tokenizer.save_pretrained("./output/generation-evaluation-trainer")
-
-# # 生成機能をテスト
-# print("\n===== トレーニング完了後の生成サンプル と OpenAI評価 =====")
-# sample_prompts = [
-#     "人工知能の未来について教えてください。",
-#     "宇宙旅行の可能性についてどう思いますか？",
-#     "効果的な学習方法を教えてください。",
-# ]
-
-# for i, prompt in enumerate(sample_prompts):
-#     print(f"\nPrompt {i}: {prompt}")
-#     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
-
-#     with torch.no_grad():
-#         outputs = model.generate(
-#             input_ids=inputs["input_ids"],
-#             attention_mask=inputs["attention_mask"],
-#             max_length=256,
-#             do_sample=True,
-#             temperature=0.7,
-#             num_return_sequences=1,
-#         )
-
-#     response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-#     response_only = response[len(prompt) :]
-#     print(f"Response: {response_only}")
-#     print("-" * 60)
 
 print("Training and evaluation completed successfully!")
