@@ -126,22 +126,15 @@ os.makedirs("output", exist_ok=True)
 print("Loading dataset...")
 data_files = {"train": config["dataset"]["feedback_data"]}
 ds_dict = load_dataset("json", data_files=data_files)
-full_ds = ds_dict["train"]  # ここに 258 レコード入っている想定
+full_ds = ds_dict["train"]
 
-# -------------------------------
-# ② 80/20 で分割（prompt で層化）
-# -------------------------------
-split_ds = full_ds.train_test_split(
-    test_size=0.20,  # 20 % を eval に
-    stratify_by_column="prompt",  # prompt ごとに同じ割合
-    seed=42,  # 再現性
-)
+split_ds = full_ds.train_test_split(test_size=0.2, seed=42)
 
 train_dataset = split_ds["train"]
 test_dataset = split_ds["test"]
 
+
 print(train_dataset.shape, test_dataset.shape)
-# → (206, 3) (52, 3)  など
 
 
 # Print a sample
