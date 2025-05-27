@@ -84,7 +84,8 @@ class GenerationDiversityCPOConfig(CPOConfig):
 
 # 拡張したトレーナークラスをインポート
 # from diversity_simpo_trainer import DiversitySimPOTrainer2WithGeneration
-from generation_evaluation_trainer import GenerationEvaluationTrainer
+# from generation_evaluation_trainer import GenerationEvaluationTrainer
+from appeal_generation_evaluation_trainer import GenerationEvaluationTrainer
 
 # OpenAI API有効性確認
 if "OPENAI_API_KEY" not in os.environ:
