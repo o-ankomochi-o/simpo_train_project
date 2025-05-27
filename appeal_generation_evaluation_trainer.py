@@ -5,6 +5,7 @@ OpenAI評価に基づく損失を組み込んだテキスト生成トレーナ�
 """
 
 import json
+import math
 import os
 import time
 from typing import Dict, List, Literal, Union
