@@ -116,7 +116,7 @@ print(
 )
 
 # Load configuration
-config_path = "configs/config_diversity_simpo.yaml"
+config_path = "configs/config_diversity_simpo_appeal.yaml"
 with open(config_path, "r") as f:
     config = yaml.safe_load(f)
 

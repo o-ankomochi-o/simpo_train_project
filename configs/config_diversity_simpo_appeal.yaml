@@ -1,0 +1,35 @@
+# config_diversity_simpo.yaml
+# 多様性促進SimPOトレーニング用設定
+
+model:
+  name: "elyza/Llama-3-ELYZA-JP-8B" # モデル名は適宜変更
+
+dataset:
+  name: "HuggingFaceH4/ultrafeedback_binarized" # データセット名は適宜変更
+  filtered_train_file: "./select_data/filtered_train_prefs.jsonl" # フィルタ済み train JSONL ファイルのパス
+  feedback_data: "./data/simpo_pairs.json"
+
+training:
+  loss_type: "simpo"
+  cpo_alpha: 0.0 # 純粋なSimPO
+  simpo_gamma: 0.7 # SimPOのγパラメータ
+
+  # 多様性関連の設定
+  diversity_weight: 0.05 # 多様性損失の全体的な重み
+  diversity_alpha: 0.1 # 多様性損失内のエントロピー項の重み
+
+  # トレーニング設定
+  per_device_train_batch_size: 2
+  num_train_epochs: 1
+  learning_rate: 0.000005
+  gradient_checkpointing: true
+
+  # 評価・保存設定
+  logging_steps: 1
+  evaluation_strategy: "steps"
+  eval_steps: 100
+  save_strategy: "no"
+  save_steps: 100
+
+  # ログ設定
+  report_to: "wandb"
