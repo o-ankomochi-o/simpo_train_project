@@ -88,6 +88,7 @@ class GenerationEvaluationTrainer(CPOTrainer):
         if self.args.report_to == "wandb":
             wandb.log(numeric_logs)
 
+    def evaluate_with_openai(self, prompt, generated_text):
         """OpenAI APIを使用してテキストを評価する"""
         if not self.enable_openai_eval or not hasattr(self, "openai_client"):
             return {"error": "OpenAI evaluation not enabled"}
@@ -95,29 +96,23 @@ class GenerationEvaluationTrainer(CPOTrainer):
         try:
             # 評価指示
             evaluation_prompt = f"""
-            評価してください:
+            以下のプロンプトと生成されたキャッチフレーズを読み取り、**キャッチフレーズに含まれる訴求の数**を評価してください。  
+            訴求とは、見る人の心を動かすような言葉（例: 割引・安心・人気・限定・簡単・公式・豊富 など）を指します。
 
-            プロンプト:
+            ---
+
+            ### プロンプト:
             {prompt}
 
-            生成されたテキスト:
+            ### 生成されたキャッチフレーズ:
             {generated_text}
 
-            以下の項目について0〜5の数値で評価し、それぞれの理由も説明してください：
-            1. 関連性: プロンプトの内容に関連しているか
-            2. 多様性: 表現や語彙の多様性があるか
-            3. 訴求点: 異なる観点や主張を含んでいるか
-            4. 読みやすさ: 文章構造や流れの自然さ
-            5. 全体評価: 総合的な質
+            ---
 
-            結果は以下のJSON形式で返してください:
+            ### 出力形式（JSONのみで出力してください）:
             ```json
             {{
-            "relevance": {{"score": 数値, "reason": "理由"}},
-            "diversity": {{"score": 数値, "reason": "理由"}},
-            "appeals": {{"score": 数値, "reason": "理由"}},
-            "readability": {{"score": 数値, "reason": "理由"}},
-            "overall": {{"score": 数値, "reason": "理由"}}
+            "number_of_appeals": {{"score": 数値（0以上の整数）, "reason": "その数にした理由（例: 価格訴求と信頼性のワードが含まれていたため）"}},
             }}
             """
 
