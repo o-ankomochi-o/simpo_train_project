@@ -7,11 +7,11 @@ VARIANCE_THRESHOLD = 2.0  # 分散の閾値を 2.0 に設定
 TARGET_DIM = "helpfulness"
 STABLE_CSV = "./select_data/stable_high_variance_prompts.csv"
 
-# ① プレーン版読み込み
+# プレーン版読み込み
 print("Loading UltraFeedback plain dataset…")
 ds = load_dataset("openbmb/UltraFeedback", split="train")
 
-# ② 各サンプルごとに helpfulness スコアを集めて分散を計算
+# 各サンプルごとに helpfulness スコアを集めて分散を計算
 print("Computing per-prompt variances…")
 records = []
 for idx, example in enumerate(ds):
