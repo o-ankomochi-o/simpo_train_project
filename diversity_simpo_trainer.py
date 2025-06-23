@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-多様性指標を組み込んだSimPOトレーナーの拡張実装 - OpenAI評価機能追加版
-"""
+"""SimPO（ポリシー最適化）に「多様性促進」損失を追加する Trainer"""
 
 import json
 import os

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-OpenAI評価に基づく損失を組み込んだテキスト生成トレーナー
+OpenAI で生成文の「訴求ポイント数」を評価し、そのスコアを損失に組み込む CPOTrainer 拡張
 """
 
 import json

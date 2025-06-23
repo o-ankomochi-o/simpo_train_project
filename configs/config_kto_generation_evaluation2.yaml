@@ -1,0 +1,38 @@
+# KTO + 生成 + OpenAI評価 用設定ファイル
+
+model:
+  name: "meta-llama/Meta-Llama-3-8B" # 使用するモデル名
+
+dataset:
+  name: "HuggingFaceH4/ultrafeedback_binarized" # データセット名は適宜変更
+
+training:
+  loss_type: "kto"
+  beta: 0.1 # KTO用のβ（β-Softmax重み付け）
+  desirable_weight: 1.0 # 望ましい応答の重み
+  undesirable_weight: 1.0 # 望ましくない応答の重み
+
+  # 多様性関連
+  diversity_weight: 0.05
+  diversity_alpha: 0.1
+
+  # 生成・評価関連
+  enable_generation: true
+  generation_interval: 1
+  generation_batch_size: 1
+  openai_evaluation: true
+  openai_model: "gpt-4o-2024-08-06"
+
+  # 学習設定
+  per_device_train_batch_size: 2
+  num_train_epochs: 1
+  learning_rate: 0.000005
+  gradient_checkpointing: true
+
+  # ロギング・保存
+  logging_steps: 1
+  evaluation_strategy: "no"
+  eval_steps: 100
+  save_strategy: "no"
+  save_steps: 100
+  report_to: "wandb"
