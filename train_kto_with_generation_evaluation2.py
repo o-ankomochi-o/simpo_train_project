@@ -151,8 +151,50 @@ print("Loading original test_prefs split…")
 dataset = load_dataset(config["dataset"]["name"])
 test_dataset = dataset["test_prefs"]
 
+
+def convert_to_kto_format(dataset):
+    """KTOトレーナー用のシンプルな形式に変換"""
+    processed_data = []
+
+    for example in dataset:
+        # chosenの処理
+        chosen_content = ""
+        if isinstance(example["chosen"], list):
+            for msg in example["chosen"]:
+                if msg["role"] == "assistant":
+                    chosen_content = msg["content"]
+                    break
+        else:
+            chosen_content = str(example["chosen"])
+
+        # rejectedの処理
+        rejected_content = ""
+        if isinstance(example["rejected"], list):
+            for msg in example["rejected"]:
+                if msg["role"] == "assistant":
+                    rejected_content = msg["content"]
+                    break
+        else:
+            rejected_content = str(example["rejected"])
+
+        # KTO形式のデータを作成
+        processed_data.append(
+            {
+                "prompt": example["prompt"],
+                "chosen": chosen_content,
+                "rejected": rejected_content,
+            }
+        )
+
+    return Dataset.from_list(processed_data)
+
+
 # 必要のないカラムを消去する
 train_dataset = train_dataset.remove_columns(["prompt_id"])
+
+# 前処理を追加
+print("Preprocessing dataset for KTO format...")
+train_dataset = convert_to_kto_format(train_dataset)
 
 # Print a sample
 print("Sample data:")
