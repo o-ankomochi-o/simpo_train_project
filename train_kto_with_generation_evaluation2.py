@@ -94,25 +94,6 @@ for i in range(torch.cuda.device_count()):
     print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
 
 
-# class CustomKTOGenerationEvaluationTrainer(KTOGenerationEvaluationTrainer):
-#     """DeepSpeedとログ機能を統合したカスタムKTOトレーナー"""
-
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-#         self.use_deepspeed = True
-
-#     def compute_loss(self, model, inputs, return_outputs=False):
-#         return super().compute_loss(model, inputs, return_outputs=return_outputs)
-
-#     def log(self, logs, start_time=None):
-#         # 親クラスのlogメソッドをインスタンスメソッドとして呼び出し
-#         super().log(logs)
-
-#         # 親クラスの処理後にwandbにログを記録
-#         if self.args.report_to == "wandb" and global_rank == 0:
-#             wandb.log(logs)
-
-
 # 明示的な分散環境の初期化
 deepspeed.init_distributed()
 
@@ -169,6 +150,9 @@ train_dataset = load_dataset(
 print("Loading original test_prefs split…")
 dataset = load_dataset(config["dataset"]["name"])
 test_dataset = dataset["test_prefs"]
+
+# 必要のないカラムを消去する
+train_dataset = train_dataset.remove_columns(["prompt_id"])
 
 # Print a sample
 print("Sample data:")
