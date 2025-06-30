@@ -154,15 +154,26 @@ print("Loading dataset...")
 
 
 # データセットの読み込み
-with open(config["dataset"]["dataset_file"], "r", encoding="utf-8") as f:
-    data = json.load(f)
-dataset = Dataset.from_dict(data)
-train_dataset = dataset
+# with open(config["dataset"]["dataset_file"], "r", encoding="utf-8") as f:
+#     data = json.load(f)
+# dataset = Dataset.from_dict(data)
+# train_dataset = dataset
 
+# 学習用にフィルタした JSONL を読み込む
+train_dataset = load_dataset(
+    "json",
+    data_files={"train": config["dataset"]["filtered_train_file"]},
+    split="train",
+)
+
+print("Loading original test_prefs split…")
+dataset = load_dataset(config["dataset"]["name"])
+test_dataset = dataset["test_prefs"]
 
 # Print a sample
 print("Sample data:")
 print(train_dataset[0])
+
 
 # # 勾配チェックポイントの設定に関する変更
 # gradient_checkpointing_kwargs = {"use_reentrant": False}
