@@ -134,7 +134,7 @@ print(
 )
 
 # Load configuration
-config_path = "configs/config_kto_generation_evaluation.yaml"
+config_path = "configs/config_kto_generation_evaluation2.yaml"
 with open(config_path, "r") as f:
     config = yaml.safe_load(f)
 
