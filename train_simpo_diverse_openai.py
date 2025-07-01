@@ -1,8 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-OpenAI評価機能を持つ文章生成機能を追加した多様性SimPOトレーニングのメインスクリプト
-"""
 
 import os
 import sys
@@ -123,9 +120,6 @@ os.makedirs("output", exist_ok=True)
 
 # Load dataset
 print("Loading dataset...")
-# dataset = load_dataset(config["dataset"]["name"])
-# train_dataset = dataset["train_prefs"]
-# test_dataset = dataset["test_prefs"]
 
 # 学習用にフィルタした JSONL を読み込む
 train_dataset = load_dataset(

@@ -1,8 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-OpenAI評価に基づく損失を組み込んだテキスト生成トレーナー
-"""
+
 
 import json
 import math

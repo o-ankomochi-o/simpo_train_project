@@ -1,8 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-OpenAI評価機能を持つ文章生成機能を追加した多様性SimPOトレーニングのメインスクリプト
-"""
 
 import json
 import os
@@ -98,12 +95,6 @@ deepspeed.init_distributed()
 
 # LOCAL_RANK取得
 local_rank = int(os.environ.get("LOCAL_RANK", 0))
-# # 分散学習の初期化
-# if not dist.is_initialized():
-#     deepspeed.init_distributed()
-
-# # CUDAデバイス設定
-# torch.cuda.set_device(local_rank)
 
 global_rank = dist.get_rank()
 world_size = dist.get_world_size()
@@ -132,12 +123,6 @@ os.makedirs("output", exist_ok=True)
 # Load dataset
 print("Loading dataset...")
 
-
-# データセットの読み込み
-# with open(config["dataset"]["dataset_file"], "r", encoding="utf-8") as f:
-#     data = json.load(f)
-# dataset = Dataset.from_dict(data)
-# train_dataset = dataset
 
 # 学習用にフィルタした JSONL を読み込む
 train_dataset = load_dataset(
