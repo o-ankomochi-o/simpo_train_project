@@ -75,8 +75,7 @@ class KTOGenerationEvaluationConfig(KTOConfig):
 
 
 # 拡張したトレーナークラスをインポート
-# from kto_generation_evaluation_trainer import KTOGenerationEvaluationTrainer
-from kto_generation_evaluation_trainer2 import KTOGenerationEvaluationTrainer
+from trainer_kto_appeal_openai import KTOGenerationEvaluationTrainer
 
 # OpenAI API有効性確認
 if "OPENAI_API_KEY" not in os.environ:
@@ -92,6 +91,25 @@ print(f"CUDA version: {torch.version.cuda}")
 print(f"GPU count: {torch.cuda.device_count()}")
 for i in range(torch.cuda.device_count()):
     print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
+
+
+# class CustomKTOGenerationEvaluationTrainer(KTOGenerationEvaluationTrainer):
+#     """DeepSpeedとログ機能を統合したカスタムKTOトレーナー"""
+
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+#         self.use_deepspeed = True
+
+#     def compute_loss(self, model, inputs, return_outputs=False):
+#         return super().compute_loss(model, inputs, return_outputs=return_outputs)
+
+#     def log(self, logs, start_time=None):
+#         # 親クラスのlogメソッドをインスタンスメソッドとして呼び出し
+#         super().log(logs)
+
+#         # 親クラスの処理後にwandbにログを記録
+#         if self.args.report_to == "wandb" and global_rank == 0:
+#             wandb.log(logs)
 
 
 # 明示的な分散環境の初期化
@@ -115,12 +133,12 @@ print(
 )
 
 # Load configuration
-config_path = "configs/config_kto_generation_evaluation2.yaml"
+config_path = "configs/config_kto_generation_evaluation.yaml"
 with open(config_path, "r") as f:
     config = yaml.safe_load(f)
 
 # Load DeepSpeed config
-with open("configs/ds_config_kto2.json", "r") as f:
+with open("configs/ds_config_kto.json", "r") as f:
     ds_config = yaml.safe_load(f)
 
 # Initialize HfDeepSpeedConfig
@@ -135,71 +153,15 @@ print("Loading dataset...")
 
 
 # データセットの読み込み
-# with open(config["dataset"]["dataset_file"], "r", encoding="utf-8") as f:
-#     data = json.load(f)
-# dataset = Dataset.from_dict(data)
-# train_dataset = dataset
+with open(config["dataset"]["dataset_file"], "r", encoding="utf-8") as f:
+    data = json.load(f)
+dataset = Dataset.from_dict(data)
+train_dataset = dataset
 
-# 学習用にフィルタした JSONL を読み込む
-train_dataset = load_dataset(
-    "json",
-    data_files={"train": config["dataset"]["filtered_train_file"]},
-    split="train",
-)
-
-print("Loading original test_prefs split…")
-dataset = load_dataset(config["dataset"]["name"])
-test_dataset = dataset["test_prefs"]
-
-
-def convert_to_kto_format(dataset):
-    """KTOトレーナー用のシンプルな形式に変換"""
-    processed_data = []
-
-    for example in dataset:
-        # chosenの処理
-        chosen_content = ""
-        if isinstance(example["chosen"], list):
-            for msg in example["chosen"]:
-                if msg["role"] == "assistant":
-                    chosen_content = msg["content"]
-                    break
-        else:
-            chosen_content = str(example["chosen"])
-
-        # rejectedの処理
-        rejected_content = ""
-        if isinstance(example["rejected"], list):
-            for msg in example["rejected"]:
-                if msg["role"] == "assistant":
-                    rejected_content = msg["content"]
-                    break
-        else:
-            rejected_content = str(example["rejected"])
-
-        # KTO形式のデータを作成
-        processed_data.append(
-            {
-                "prompt": example["prompt"],
-                "chosen": chosen_content,
-                "rejected": rejected_content,
-            }
-        )
-
-    return Dataset.from_list(processed_data)
-
-
-# 必要のないカラムを消去する
-train_dataset = train_dataset.remove_columns(["prompt_id"])
-
-# 前処理を追加
-print("Preprocessing dataset for KTO format...")
-train_dataset = convert_to_kto_format(train_dataset)
 
 # Print a sample
 print("Sample data:")
 print(train_dataset[0])
-
 
 # # 勾配チェックポイントの設定に関する変更
 # gradient_checkpointing_kwargs = {"use_reentrant": False}
@@ -262,7 +224,7 @@ training_args = KTOGenerationEvaluationConfig(
     per_device_train_batch_size=config["training"]["per_device_train_batch_size"],
     num_train_epochs=config["training"]["num_train_epochs"],
     logging_steps=config["training"]["logging_steps"],
-    deepspeed="configs/ds_config_kto2.json",
+    deepspeed="configs/ds_config_kto.json",
     gradient_checkpointing=config["training"]["gradient_checkpointing"],
     gradient_checkpointing_kwargs={"use_reentrant": False},
     save_strategy=config["training"]["save_strategy"],
@@ -280,7 +242,6 @@ training_args = KTOGenerationEvaluationConfig(
 
 # Create trainer - DiversitySimPOTrainer2WithGenerationを使用
 print("Setting up trainer with generation and OpenAI evaluation capability...")
-
 trainer = KTOGenerationEvaluationTrainer(
     model=model,
     ref_model=ref_model,

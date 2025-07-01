@@ -4,11 +4,8 @@
 OpenAI評価機能を持つ文章生成機能を追加した多様性SimPOトレーニングのメインスクリプト
 """
 
-import json
 import os
 import sys
-
-from datasets import Dataset
 
 # Flex-Attention を無効化
 os.environ["TRANSFORMERS_NO_FLEX_ATTENTION"] = "1"
@@ -27,55 +24,66 @@ import wandb
 import yaml
 from datasets import load_dataset
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from transformers.integrations import HfDeepSpeedConfig
-from trl import KTOConfig
+from trl import CPOConfig
 
 
 # 多様性パラメータと生成パラメータを持つCPOConfig拡張
 @dataclass
-class KTOGenerationEvaluationConfig(KTOConfig):
+class GenerationDiversityCPOConfig(CPOConfig):
     """
-    KTOにOpenAI評価・生成・多様性パラメータを追加した拡張設定
+    多様性指標と生成機能、OpenAI評価を追加したCPOConfig拡張
     """
 
+    # 多様性重み - 多様性損失の全体的な重み付け
     diversity_weight: Optional[float] = field(
         default=0.05,
-        metadata={"help": "多様性損失の全体的な重み付け（0.01〜0.1）"},
+        metadata={"help": "多様性損失の全体的な重み付け。0.01〜0.1の範囲が推奨。"},
     )
 
+    # 多様性アルファ - エントロピー項とKL項のバランス
     diversity_alpha: Optional[float] = field(
         default=0.1,
-        metadata={"help": "多様性損失内のエントロピー項の重み（0〜1）"},
+        metadata={
+            "help": "多様性損失内のエントロピー項の重み。0〜1の範囲。"
+            "1に近いほどエントロピーが強調され、0に近いほどKL項が強調される。"
+        },
     )
 
+    # 生成機能のオン・オフ
     enable_generation: Optional[bool] = field(
         default=True,
-        metadata={"help": "文章生成機能のオン/オフ"},
+        metadata={"help": "トレーニング中の文章生成機能を有効にするかどうか"},
     )
 
+    # 生成間隔 - 何ステップごとに生成を行うか
     generation_interval: Optional[int] = field(
         default=100,
-        metadata={"help": "何ステップごとに生成するか"},
+        metadata={"help": "トレーニング中に何ステップごとに文章生成を行うか"},
     )
 
+    # 生成に使用するバッチサイズ
     generation_batch_size: Optional[int] = field(
         default=2,
-        metadata={"help": "生成時のバッチサイズ"},
+        metadata={
+            "help": "文章生成時に使用するバッチサイズ（小さいほど計算効率が良い）"
+        },
     )
 
+    # OpenAI評価機能のオン・オフ
     openai_evaluation: Optional[bool] = field(
         default=True,
-        metadata={"help": "OpenAI APIによる生成評価のオン/オフ"},
+        metadata={"help": "OpenAI APIを使用して生成テキストを評価するかどうか"},
     )
 
+    # 使用するOpenAIモデル
     openai_model: Optional[str] = field(
-        default="gpt-4o-2024-08-06",
-        metadata={"help": "OpenAI評価モデル名"},
+        default="gpt-3.5-turbo",
+        metadata={"help": "評価に使用するOpenAIモデル名"},
     )
 
 
 # 拡張したトレーナークラスをインポート
-from kto_generation_evaluation_trainer import KTOGenerationEvaluationTrainer
+from trainer_simpo_openai_multi import GenerationEvaluationTrainer
 
 # OpenAI API有効性確認
 if "OPENAI_API_KEY" not in os.environ:
@@ -93,104 +101,52 @@ for i in range(torch.cuda.device_count()):
     print(f"GPU {i}: {torch.cuda.get_device_name(i)}")
 
 
-# class CustomKTOGenerationEvaluationTrainer(KTOGenerationEvaluationTrainer):
-#     """DeepSpeedとログ機能を統合したカスタムKTOトレーナー"""
-
-#     def __init__(self, *args, **kwargs):
-#         super().__init__(*args, **kwargs)
-#         self.use_deepspeed = True
-
-#     def compute_loss(self, model, inputs, return_outputs=False):
-#         return super().compute_loss(model, inputs, return_outputs=return_outputs)
-
-#     def log(self, logs, start_time=None):
-#         # 親クラスのlogメソッドをインスタンスメソッドとして呼び出し
-#         super().log(logs)
-
-#         # 親クラスの処理後にwandbにログを記録
-#         if self.args.report_to == "wandb" and global_rank == 0:
-#             wandb.log(logs)
-
-
 # 明示的な分散環境の初期化
 deepspeed.init_distributed()
 
-# LOCAL_RANK取得
+# LOCAL_RANKとglobal_rankを設定
 local_rank = int(os.environ.get("LOCAL_RANK", 0))
-# # 分散学習の初期化
-# if not dist.is_initialized():
-#     deepspeed.init_distributed()
-
-# # CUDAデバイス設定
-# torch.cuda.set_device(local_rank)
-
 global_rank = dist.get_rank()
 world_size = dist.get_world_size()
-
 
 print(
     f"Process info: local_rank={local_rank}, global_rank={global_rank}, world_size={world_size}"
 )
 
 # Load configuration
-config_path = "configs/config_kto_generation_evaluation.yaml"
+config_path = "configs/config_diversity_simpo.yaml"
 with open(config_path, "r") as f:
     config = yaml.safe_load(f)
-
-# Load DeepSpeed config
-with open("configs/ds_config_kto.json", "r") as f:
-    ds_config = yaml.safe_load(f)
-
-# Initialize HfDeepSpeedConfig
-dschf = HfDeepSpeedConfig(ds_config)
-
 
 # Create output directory
 os.makedirs("output", exist_ok=True)
 
 # Load dataset
 print("Loading dataset...")
+# dataset = load_dataset(config["dataset"]["name"])
+# train_dataset = dataset["train_prefs"]
+# test_dataset = dataset["test_prefs"]
 
+# 学習用にフィルタした JSONL を読み込む
+train_dataset = load_dataset(
+    "json",
+    data_files={"train": config["dataset"]["filtered_train_file"]},
+    split="train",
+)
 
-# データセットの読み込み
-with open(config["dataset"]["dataset_file"], "r", encoding="utf-8") as f:
-    data = json.load(f)
-dataset = Dataset.from_dict(data)
-train_dataset = dataset
-
+print("Loading original test_prefs split…")
+dataset = load_dataset(config["dataset"]["name"])
+test_dataset = dataset["test_prefs"]
 
 # Print a sample
 print("Sample data:")
 print(train_dataset[0])
 
-# # 勾配チェックポイントの設定に関する変更
-# gradient_checkpointing_kwargs = {"use_reentrant": False}
-
 # Load model and tokenizer
 print(f"Loading model: {config['model']['name']}...")
-tokenizer = AutoTokenizer.from_pretrained(
-    config["model"]["name"], use_fast=False, trust_remote_code=True
-)
-model = AutoModelForCausalLM.from_pretrained(
-    config["model"]["name"],
-    trust_remote_code=True,
-)
+tokenizer = AutoTokenizer.from_pretrained(config["model"]["name"])
+model = AutoModelForCausalLM.from_pretrained(config["model"]["name"])
 tokenizer.pad_token = tokenizer.eos_token
-tokenizer.padding_side = "right"
-model.gradient_checkpointing_enable()  # 勾配チェックポイントを有効化
-model.config.use_cache = False  # キャッシュを無効化（メモリ使用量削減）
-
-# 明示的にパラメータの勾配を有効化
-for param in model.parameters():
-    param.requires_grad = True
-
-
-# リファレンスモデルのセットアップ
-ref_model = AutoModelForCausalLM.from_pretrained(config["model"]["name"])
-ref_model.config.pad_token_id = tokenizer.pad_token_id
-ref_model.config.use_cache = False
-ref_model.gradient_checkpointing_enable()
-ref_model.config.use_cache = False
 
 # Initialize wandb
 from datetime import datetime
@@ -199,56 +155,88 @@ from datetime import datetime
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 run_name = f"GenerationEvaluation_{timestamp}"
 
-wandb.init(project="elyza-llama-kto", name=run_name)
+wandb.init(project="elyza-llama-simpo", name=run_name)
 wandb.config.update(config)
 wandb.watch(model, log="all", log_freq=10)
 
 
+# Preprocess dataset
+def preprocess_function(example):
+    # Get prompt
+    prompt_text = example["prompt"]
+
+    # Extract assistant responses
+    chosen_reply = next(
+        (msg["content"] for msg in example["chosen"] if msg["role"] == "assistant"),
+        None,
+    )
+    rejected_reply = next(
+        (msg["content"] for msg in example["rejected"] if msg["role"] == "assistant"),
+        None,
+    )
+
+    # Skip if assistant responses not found
+    if chosen_reply is None or rejected_reply is None:
+        return {}
+
+    # Return formatted data
+    return {
+        "prompt": prompt_text,
+        "chosen": chosen_reply,
+        "rejected": rejected_reply,
+    }
+
+
+print("Preprocessing dataset...")
+formatted_train_dataset = train_dataset.map(preprocess_function, batched=False)
+formatted_test_dataset = test_dataset.map(preprocess_function, batched=False)
+formatted_train_dataset = formatted_train_dataset.select(range(200))
+formatted_test_dataset = formatted_test_dataset.select(range(100))
+
+# Remove unnecessary columns
+columns_to_remove = list(
+    set(formatted_train_dataset.column_names) - {"prompt", "chosen", "rejected"}
+)
+formatted_train_dataset = formatted_train_dataset.remove_columns(columns_to_remove)
+formatted_test_dataset = formatted_test_dataset.remove_columns(columns_to_remove)
+
 # Setup training arguments - 拡張した設定クラスを使用
-training_args = KTOGenerationEvaluationConfig(
-    output_dir="./output/kto-generation-eval",
-    loss_type="kto",  # 明示的にkto指定（もしくはデフォルトのままでもOK）
-    # KTOの追加パラメータ
-    beta=config["training"].get("beta", 0.1),
-    desirable_weight=config["training"].get("desirable_weight", 1.0),
-    undesirable_weight=config["training"].get("undesirable_weight", 0.1),
-    # 多様性や生成、OpenAI評価用パラメータ
+training_args = GenerationDiversityCPOConfig(
+    output_dir="./output/generation-evaluation-trainer",
+    loss_type="simpo",
+    cpo_alpha=0.0,  # 純粋なSimPO
+    simpo_gamma=config["training"]["simpo_gamma"],
+    # 多様性パラメータを追加
     diversity_weight=config["training"]["diversity_weight"],
     diversity_alpha=config["training"]["diversity_alpha"],
+    # 生成パラメータを追加
     enable_generation=True,
-    generation_interval=1,
-    generation_batch_size=2,
+    generation_interval=1,  # 25ステップごとに生成（より頻繁にサンプルを確認）
+    generation_batch_size=1,  # バッチサイズを1に縮小（計算効率のため）
+    # OpenAI評価パラメータ
     openai_evaluation=True,
     openai_model="gpt-4o-2024-08-06",
-    # 共通パラメータ
+    # 一般的なトレーニングパラメータ
     per_device_train_batch_size=config["training"]["per_device_train_batch_size"],
     num_train_epochs=config["training"]["num_train_epochs"],
     logging_steps=config["training"]["logging_steps"],
-    deepspeed="configs/ds_config_kto.json",
+    deepspeed="configs/ds_config_simpo.json",
     gradient_checkpointing=config["training"]["gradient_checkpointing"],
-    gradient_checkpointing_kwargs={"use_reentrant": False},
     save_strategy=config["training"]["save_strategy"],
     save_steps=config["training"]["save_steps"],
     evaluation_strategy=config["training"]["evaluation_strategy"],
     eval_steps=config["training"]["eval_steps"],
     learning_rate=float(config["training"]["learning_rate"]),
     report_to=config["training"]["report_to"],
-    gradient_accumulation_steps=4,
-    bf16=True,
-    ddp_find_unused_parameters=False,  # DDPの未使用パラメータチェックを無効化
-    no_cuda=False,  # CUDAの使用を有効化
-    run_name=run_name,  # wandbのrun_name
 )
 
 # Create trainer - DiversitySimPOTrainer2WithGenerationを使用
 print("Setting up trainer with generation and OpenAI evaluation capability...")
-trainer = KTOGenerationEvaluationTrainer(
+trainer = GenerationEvaluationTrainer(
     model=model,
-    ref_model=ref_model,
     args=training_args,
-    # train_dataset=formatted_train_dataset,
-    # eval_dataset=formatted_test_dataset,
-    train_dataset=train_dataset,
+    train_dataset=formatted_train_dataset,
+    eval_dataset=formatted_test_dataset,
     processing_class=tokenizer,
 )
 
